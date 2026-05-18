@@ -1,74 +1,90 @@
-import yfinance as yf
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras import layers, models
-import json
-import os
-from datetime import datetime
+# COMANDO: /analisar (Versão Atualizada: Corrige criptos e atualiza o site automaticamente)
+@bot.message_handler(commands=['analisar'])
+def iniciar_analise(message):
+    try:
+        argumentos = message.text.split()
+        if len(argumentos) < 3:
+            bot.reply_to(message, "✍️ Mestre, use: `/analisar ATIVO SENTIMENTO`", parse_mode="Markdown")
+            return
 
-# 1. LER CONFIGURAÇÃO DE ENSINO
-def carregar_config():
-    if os.path.exists('insights.json'):
-        with open('insights.json', 'r') as f:
-            cfg = json.load(f)
-            return cfg.get("ativo_para_analise", "BTC-USD"), cfg.get("sentimento_mestre", 0.5)
-    return "BTC-USD", 0.5
+        ativo = argumentos[1].upper()
+        sentimento_texto = argumentos[2].lower()
+        sentimento = 0.8 if sentimento_texto in ["otimista", "bom", "alta"] else (0.2 if sentimento_texto in ["pessimista", "ruim", "queda"] else 0.5)
 
-ativo, sentimento = carregar_config()
-print(f"🧠 MUTH INDEPENDENTE — Alvo: {ativo} | Sentimento: {sentimento}")
+        bot.send_message(message.chat.id, f"🧠 Muth processando... Carregando rede neural e adaptando ao ativo {ativo}.")
 
-# 2. TREINAMENTO DA REDE NEURAL DO ZERO
-try:
-    # Baixa os dados históricos
-    dados = yf.download(ativo, period="3y", interval="1d", progress=False, auto_adjust=True)
-    if dados.empty:
-        print("❌ Ativo não encontrado.")
-        exit()
+        # AJUSTE INTELIGENTE DE TICKER (B3 vs Global)
+        if "-" in ativo or "." in ativo:
+            ticker = ativo  # Criptos (BTC-USD) ou moedas ficam puras
+        else:
+            ticker = f"{ativo}.SA"  # Ações brasileiras (PETR4, MXRF11) ganham .SA
 
-    dados['Retorno'] = dados['Close'].pct_change()
-    dados['Alvo'] = np.where(dados['Retorno'].shift(-1) > 0, 1, 0)
-    dados = dados.dropna()
+        dados = yf.download(ticker, period="2y", interval="1d", progress=False, auto_adjust=True)
+        
+        if dados.empty:
+            bot.reply_to(message, f"❌ Não encontrei dados para `{ativo}` no Yahoo Finance.")
+            return
 
-    # Estrutura de dados temporais (janela de 4 dias)
-    X, y = [], []
-    for i in range(len(dados) - 4):
-        X.append(dados['Retorno'].iloc[i:i+4].values)
-        y.append(dados['Alvo'].iloc[i+3])
-    X, y = np.array(X), np.array(y)
+        dados['Retorno'] = dados['Close'].pct_change()
+        dados['Alvo'] = np.where(dados['Retorno'].shift(-1) > 0, 1, 0)
+        dados = dados.dropna()
 
-    # Criando Arquitetura Neural do Zero
-    model = models.Sequential([
-        layers.Input(shape=(4,)),
-        layers.Dense(32, activation='relu'),
-        layers.Dense(16, activation='relu'),
-        layers.Dense(1, activation='sigmoid')
-    ])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    model.fit(X, y, epochs=10, batch_size=16, verbose=0)
+        X, y = [], []
+        for i in range(len(dados) - 4):
+            X.append(dados['Retorno'].iloc[i:i+4].values)
+            y.append(dados['Alvo'].iloc[i+3])
+        X, y = np.array(X), np.array(y)
 
-    # Predição para o próximo movimento
-    ultimos_dias = dados['Retorno'].iloc[-4:].values.reshape(1, 4)
-    previsao = model.predict(ultimos_dias, verbose=0)[0][0]
+        if os.path.exists(ARQUIVO_MEMORIA):
+            model = joblib.load(ARQUIVO_MEMORIA)
+        else:
+            model = MLPClassifier(hidden_layer_sizes=(32, 16), max_iter=10, warm_start=True, random_state=42)
 
-    # Dinâmica de Decisão baseada no seu input humano
-    criterio = 0.52 + (0.5 - sentimento) * 0.1
-    sinal = "COMPRAR 🚀" if previsao > criterio else "AGUARDAR ⏳"
-    confianca = round(float(previsao) * 100, 1)
+        model.max_iter += 5
+        model.fit(X, y)
+        joblib.dump(model, ARQUIVO_MEMORIA)
 
-    # 3. SALVAR RESULTADO PARA A LANDING PAGE
-    resultado = {
-        "ativo": ativo,
-        "sinal": sinal,
-        "confianca": f"{confianca}%",
-        "criterio": round(criterio, 2),
-        "atualizado": datetime.now().strftime("%d/%m/%Y %H:%M")
-    }
+        ultimos_dias = dados['Retorno'].iloc[-4:].values.reshape(1, 4)
+        previsao = model.predict_proba(ultimos_dias)[0][1]
 
-    # Salva como um arquivo JavaScript para a página ler sem precisar de banco de dados!
-    with open('dados_muth.js', 'w', encoding='utf-8') as f:
-        f.write(f"const dadosMuth = {json.dumps(resultado, ensure_ascii=False)};")
-    
-    print(f"✅ Análise concluída com sucesso! Resultado salvo para a Web.")
+        gatilho_exigido = 0.52 + (0.5 - sentimento) * 0.1
+        sinal = "COMPRAR 🚀" if previsao > gatilho_exigido else "AGUARDAR ⏳"
+        confianca_percentual = round(float(previsao) * 100, 1)
 
-except Exception as e:
-    print(f"❌ Erro: {e}")
+        historico = carregar_historico()
+        historico.append({
+            "tipo": "analise_mercado",
+            "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "ativo": ativo,
+            "sentimento_mestre": sentimento_texto,
+            "previsao_ia": round(float(previsao), 4),
+            "decisao": sinal
+        })
+        salvar_historico(historico)
+
+        # 🔄 COMANDO MÁGICO: ATUALIZA O ARQUIVO DO SITE WEB LOCALMENTE
+        conteudo_js = f"""// Gerado automaticamente pela Muth via Telegram
+const dadosMuth = {{
+    ativo: "{ativo}",
+    decisao: "{sinal}",
+    confianca: "{confianca_percentual}%",
+    ultimaAtualizacao: "{datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+}};
+"""
+        with open("dados_muth.js", "w", encoding="utf-8") as f:
+            f.write(conteudo_js)
+
+        resposta = (
+            f"🔮 *RELATÓRIO NEURAL EVOLUTIVO*\n"
+            f"-----------------------------------------\n"
+            f"🎯 *Ativo:* {ativo}\n"
+            f"📈 *Confiança Acumulada:* {confianca_percentual}%\n"
+            f"🚨 *Decisão:* *{sinal}*\n"
+            f"-----------------------------------------\n"
+            f"💻 _Painel Web atualizado localmente!_\n"
+            f"📚 *Evolução da Muth:* Eu já processei *{len(historico)}* situações!"
+        )
+        bot.reply_to(message, resposta, parse_mode="Markdown")
+
+    except Exception as e:
+        bot.reply_to(message, f"❌ Erro: {e}")

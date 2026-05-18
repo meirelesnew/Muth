@@ -1,0 +1,16 @@
+[
+  {
+    "tipo": "pesquisa_clima",
+    "data": "2026-05-18 10:52:54",
+    "local": "Duque de Caxias",
+    "dados": "+25°C Patchy rain nearby umidade: 83%"
+  },
+  {
+    "tipo": "analise_mercado",
+    "data": "2026-05-18 10:53:42",
+    "ativo": "MXRF11",
+    "sentimento_mestre": "otimista",
+    "previsao_ia": 0.3706,
+    "decisao": "AGUARDAR ⏳"
+  }
+]
