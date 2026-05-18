@@ -16,7 +16,7 @@ ARQUIVO_MEMORIA = "muth_memory.pkl"
 ARQUIVO_HISTORICO = "historico_muth.json"
 
 print("=" * 50)
-print("🧠 MUTH AI v4.2 — Memória Evolutiva Combinada Ativa!")
+print("🧠 MUTH AI v4.3 — Memória Evolutiva Combinada Ativa!")
 print("Aguardando interações no Telegram...")
 print("=" * 50)
 
@@ -60,18 +60,19 @@ def comando_clima(message):
     bot.send_message(message.chat.id, f"🌤️ Muth consultando e registrando clima para: *{cidade}*...", parse_mode="Markdown")
     info_clima = pegar_clima(cidade)
     
+    cidade_formatada = cidade.title()
     historico = carregar_historico()
     historico.append({
         "tipo": "pesquisa_clima",
         "data": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "local": city_name := cidade.title(),
+        "local": cidade_formatada,
         "dados": info_clima
     })
     salvar_historico(historico)
 
-    bot.reply_to(message, f"🌍 *CLIMA REGISTRADO NA MEMÓRIA*\n• Local: {city_name}\n• Dados: {info_clima}\n\n💡 _Minha base de dados agora tem {len(historico)} registros de experiência!_", parse_mode="Markdown")
+    bot.reply_to(message, f"🌍 *CLIMA REGISTRADO NA MEMÓRIA*\n• Local: {cidade_formatada}\n• Dados: {info_clima}\n\n💡 _Minha base de dados agora tem {len(historico)} registros de experiência!_", parse_mode="Markdown")
 
-# COMANDO: /analisar (Versão Inteligente: Proteção contra erros de Ticker)
+# COMANDO: /analisar
 @bot.message_handler(commands=['analisar'])
 def iniciar_analise(message):
     try:
@@ -86,11 +87,11 @@ def iniciar_analise(message):
 
         bot.send_message(message.chat.id, f"🧠 Muth processando... Carregando rede neural e adaptando ao ativo {ativo}.")
 
-        # 🚀 TRATAMENTO DE TICKER INTELIGENTE AQUI:
+        # Ajuste inteligente de Ticker (Criptos vs B3)
         if "-" in ativo or "." in ativo:
-            ticker = ativo  # Se tem hífen (BTC-USD) ou ponto, deixa original para o mercado global
+            ticker = ativo  
         else:
-            ticker = f"{ativo}.SA"  # Se não tem nada (PETR4, VALE3), adiciona a terminação da B3 brasileira
+            ticker = f"{ativo}.SA"  
 
         dados = yf.download(ticker, period="2y", interval="1d", progress=False, auto_adjust=True)
         
@@ -135,7 +136,7 @@ def iniciar_analise(message):
         })
         salvar_historico(historico)
 
-        # 🔄 Sincroniza e cria o arquivo para a página Web local
+        # Atualiza o arquivo local para a sua página web!
         conteudo_js = f"""// Gerado automaticamente pela Muth via Telegram
 const dadosMuth = {{
     ativo: "{ativo}",
