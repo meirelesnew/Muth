@@ -1,0 +1,17 @@
+name: Executar Muth 4x por dia
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+jobs:
+  rodar-ia:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    - name: Instalar Dependencias
+      run: pip install yfinance tensorflow numpy requests
+    - name: Executar Cérebro da Muth
+      run: python muth_brain.py
