@@ -3,22 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Muth AI - Vitrine Oficial</title>
+    <title>Muth AI — Central de Inteligência</title>
     <link href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { background: #050505; color: #fff; font-family: 'Urbanist', sans-serif; margin: 0; text-align: center; display: flex; flex-direction: column; justify-content: center; height: 100vh; }
-        h1 { font-size: 90px; margin: 0; }
-        h1 span { color: #00f2ff; text-shadow: 0 0 20px rgba(0, 242, 255, 0.4); }
-        p { color: #888; font-size: 24px; margin-top: 10px; }
-        .btn { border: 1px solid #00f2ff; color: #00f2ff; padding: 12px 30px; text-decoration: none; border-radius: 30px; font-weight: bold; transition: 0.3s; margin-top: 20px; display: inline-block; }
-        .btn:hover { background: #00f2ff; color: #000; }
+        body { background: #050505; color: #fff; font-family: 'Urbanist', sans-serif; margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+        .box { background: #0a0a0a; border: 1px solid #1a1a1a; padding: 40px; border-radius: 24px; max-width: 500px; width: 90%; box-shadow: 0 0 40px rgba(0, 242, 255, 0.05); text-align: center; }
+        h1 { font-size: 50px; margin: 0 0 10px 0; letter-spacing: -2px; }
+        h1 span { color: #00f2ff; text-shadow: 0 0 20px rgba(0, 242, 255, 0.3); }
+        .subtitle { color: #555; margin-bottom: 30px; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; }
+        .dado-container { margin: 20px 0; padding: 15px; background: #0f0f0f; border-radius: 12px; border: 1px solid #151515; }
+        .label { font-size: 14px; color: #666; text-transform: uppercase; }
+        .valor { font-size: 28px; font-weight: bold; color: #fff; margin-top: 5px; }
+        .sinal-comprar { color: #00ff88 !important; text-shadow: 0 0 15px rgba(0, 255, 136, 0.2); }
+        .sinal-aguardar { color: #ffbb00 !important; text-shadow: 0 0 15px rgba(255, 187, 0, 0.2); }
+        .footer-data { font-size: 12px; color: #333; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>MUTH<span>.</span></h1>
-    <p>A Inteligência Artificial de Investimentos que evolui com o conhecimento humano.</p>
-    <div>
-        <a href="https://carteira-01.web.app" target="_blank" class="btn">ACESSAR MEU DASHBOARD REAL</a>
+
+    <div class="box">
+        <h1>MUTH<span>.</span></h1>
+        <div class="subtitle">Rede Neural Solo Independente</div>
+
+        <div class="dado-container">
+            <div class="label">Ativo Monitorado</div>
+            <div id="muth-ativo" class="valor">---</div>
+        </div>
+
+        <div class="dado-container">
+            <div class="label">Decisão da Inteligência</div>
+            <div id="muth-sinal" class="valor">---</div>
+        </div>
+
+        <div class="dado-container">
+            <div class="label">Confiança de Alta</div>
+            <div id="muth-confianca" class="valor">---</div>
+        </div>
+
+        <div id="muth-data" class="footer-data">Carregando dados da mente neural...</div>
     </div>
+
+    <script src="dados_muth.js"></script>
+    <script>
+        // Preenche a tela com os dados locais gerados pela IA do seu PC
+        if (typeof dadosMuth !== 'undefined') {
+            document.getElementById('muth-ativo').innerText = dadosMuth.ativo;
+            
+            const sinalEl = document.getElementById('muth-sinal');
+            sinalEl.innerText = dadosMuth.sinal;
+            if(dadosMuth.sinal.includes("COMPRAR")) {
+                sinalEl.classList.add('sinal-comprar');
+            } else {
+                sinalEl.classList.add('sinal-aguardar');
+            }
+
+            document.getElementById('muth-confianca').innerText = dadosMuth.confianca;
+            document.getElementById('muth-data').innerText = "Última atualização da mente: " + dadosMuth.atualizado;
+        } else {
+            document.getElementById('muth-data').innerText = "Aguardando primeira execução do script Python...";
+        }
+    </script>
 </body>
 </html>
