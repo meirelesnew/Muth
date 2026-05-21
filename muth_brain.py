@@ -15,7 +15,6 @@ from sklearn.preprocessing import StandardScaler
 # =========================================================
 # CONFIGURAÇÕES DE CRIPTOGRAFIA E CHAVES (PRODUÇÃO SEGURA)
 # =========================================================
-# O código agora lê as chaves direto da memória protegida do Render
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
@@ -70,7 +69,7 @@ def chamar_gemini_com_busca(pergunta_usuario):
                     )
                 }]
             }],
-            "tools": [{"google_search_retrieval": {}}] # Busca do Google ativa e oficial
+            "tools": [{"google_search_retrieval": {}}] 
         }
 
         resposta = requests.post(url, headers=headers, json=payload, timeout=15)
@@ -94,28 +93,59 @@ def enviar_boas_vindas(message):
         "-----------------------------------------\n"
         "Olá! Estou online e pronto para operar.\n\n"
         "*Comandos Disponíveis:*\n"
-        "📈 `/analisar PETR4 otimista` — Inteligência Artificial aplicada ao mercado.\n"
+        "💱 `/cotacao` — Valores do Dólar, Euro e Bitcoin em tempo real.\n"
+        "📈 `/analise PETR4 otimista` — Inteligência Artificial aplicada ao mercado.\n"
         "🌤️ `/clima Duque de Caxias` — Monitoramento meteorológico local.\n"
         "🚧 `/transitorj` — Varredura inteligente das vias do Rio de Janeiro.\n\n"
-        "💡 _Você também pode me fazer qualquer pergunta direta no chat, como 'Vai chover hoje?' que buscarei na internet para você!_"
+        "💡 _Você também pode me fazer qualquer pergunta direta no chat, como 'Qual a cotação do dólar hoje?' que o Gemini buscará na internet!_"
     )
     bot.reply_to(message, boas_vindas, parse_mode="Markdown")
 
 # =========================================================
-# 🎛️ BOT COMMAND: /ANALISAR (FINANÇAS ML)
+# 🎛️ BOT COMMAND: /COTACAO (TEMPO REAL OFICIAL)
 # =========================================================
-@bot.message_handler(commands=['analisar'])
+@bot.message_handler(commands=['cotacao', 'moedas'])
+def verificar_cotacao(message):
+    try:
+        bot.send_chat_action(message.chat.id, 'typing')
+        url = "https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,BTC-BRL"
+        resposta = requests.get(url, timeout=10).json()
+        
+        usd = resposta['USDBRL']
+        eur = resposta['EURBRL']
+        btc = resposta['BTCBRL']
+        
+        txt = (
+            "💱 *MUTH FINANCE • COTAÇÕES EM TEMPO REAL*\n"
+            "-----------------------------------------\n"
+            f"💵 *Dólar (USD):* R$ {float(usd['bid']):.2f}\n"
+            f"📈 Variação: {usd['pctChange']}%\n\n"
+            f"💶 *Euro (EUR):* R$ {float(eur['bid']):.2f}\n"
+            f"📈 Variação: {eur['pctChange']}%\n\n"
+            f"₿ *Bitcoin (BTC):* R$ {float(btc['bid']):.3f}\n"
+            f"📈 Variação: {btc['pctChange']}%\n"
+            "-----------------------------------------\n"
+            f"🕒 _Atualizado às: {usd['create_date'].split()[1]}_"
+        )
+        bot.reply_to(message, txt, parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Erro ao obter cotações do mercado: {e}")
+
+# =========================================================
+# 🎛️ BOT COMMAND: /ANALISE ou /ANALISAR (FINANÇAS ML)
+# =========================================================
+@bot.message_handler(commands=['analisar', 'analise'])
 def analisar_mercado(message):
     try:
         comando_partes = message.text.split()
         if len(comando_partes) < 3:
-            bot.reply_to(message, "❌ *Formato incorreto.* Use: `/analisar ATIVO sentimento` (Ex: `/analisar PETR4 otimista`)", parse_mode="Markdown")
+            bot.reply_to(message, "❌ *Formato incorreto.* Use: `/analise ATIVO sentimento`\n_(Ex: `/analise PETR4 otimista`)_", parse_mode="Markdown")
             return
 
         ativo = comando_partes[1].upper()
         sentimento = comando_partes[2].lower()
 
-        bot.send_message(message.chat.id, f"📈 Analisando {ativo}...")
+        bot.send_message(message.chat.id, f"📈 Analisando {ativo} com a Rede Neural...")
 
         preco, features = obter_dados_mercado_simulado(ativo)
         features_escalonadas = scaler.transform(features)
@@ -126,163 +156,5 @@ def analisar_mercado(message):
         sinais = {0: "⏳ AGUARDAR", 1: "🟢 COMPRAR", 2: "🔴 VENDER"}
         sinal_veredicto = sinais.get(predicao_id, "⏳ AGUARDAR")
         
-        confianca_final = 38.12 if "PETR4" in ativo and sentimento == "otimista" else round(probabilidades[predicao_id] * 100, 2)
-
-        txt = (
-            "📈 *MUTH ANALYTICS*\n"
-            "---------------------\n"
-            f"📊 *Ativo:* {ativo}\n"
-            f"💰 *Preço:* R$ {preco}\n"
-            f"🧠 *Confiança:* {confianca_final}%\n"
-            f"💭 *Sentimento:* {sentimento}\n"
-            f"🚦 *Sinal:* {sinal_veredicto}"
-        )
-        bot.reply_to(message, txt, parse_mode="Markdown")
-
-    except Exception as e:
-        bot.reply_to(message, f"❌ Erro na análise preditiva: {e}")
-
-# =========================================================
-# 🎛️ BOT COMMAND: /CLIMA
-# =========================================================
-@bot.message_handler(commands=['clima'])
-def verificar_clima(message):
-    try:
-        comando_partes = message.text.split(maxsplit=1)
-        cidade = comando_partes[1] if len(comando_partes) > 1 else "Duque de Caxias"
-
-        bot.send_message(message.chat.id, f"🌤️ Consultando clima de {cidade}...")
-
-        url = f"https://wttr.in/{cidade}?format=j1"
-        resposta = requests.get(url, timeout=10).json()
-
-        condicao_atual = resposta['current_condition'][0]
-        temp = condicao_atual['temp_C']
-        umidade = condicao_atual['humidity']
-        vento = condicao_atual['windspeedKmph']
-        descricao_tempo = condicao_atual['weatherDesc'][0]['value']
-
-        emoji_estado = "☀️"
-        desc_lower = descricao_tempo.lower()
-        if "rain" in desc_lower or "drizzle" in desc_lower or "chuva" in desc_lower:
-            emoji_estado = "🌧️ CHUVA"
-        elif "cloud" in desc_lower or "overcast" in desc_lower or "nublado" in desc_lower:
-            emoji_estado = "☁️ NUBLADO"
-        elif "mist" in desc_lower or "fog" in desc_lower:
-            emoji_estado = "🌫️ NEVOEIRO"
-
-        txt = (
-            "🌍 *CLIMA*\n"
-            "-------------------------\n"
-            f"📍 {cidade.title()}\n\n"
-            f"🌡️ *Temp:* +{temp}°C\n"
-            f"🌤️ *Estado:* {emoji_estado}\n"
-            f"💧 *Umidade:* {umidade}%\n"
-            f"💨 *Vento:* ↗️ {vento}km/h"
-        )
-        bot.reply_to(message, txt, parse_mode="Markdown")
-
-    except Exception as e:
-        bot.reply_to(message, f"❌ Erro ao obter dados climáticos: {e}")
-
-# =========================================================
-# 🎛️ BOT COMMAND: /TRANSITORJ (FILTRO INTELIGENTE)
-# =========================================================
-@bot.message_handler(commands=['transitorj'])
-def verificar_transito_rj(message):
-    try:
-        bot.send_message(message.chat.id, "🚧 Escaneando principais vias do RJ...")
-
-        url = "https://g1.globo.com/dynamo/rj/rio-de-janeiro/rss2.xml"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-
-        resposta = requests.get(url, headers=headers, timeout=10)
-        txt = "🚧 *MONITORAMENTO TRÂNSITO & VIAS RJ*\n---------------------\n"
-
-        if resposta.status_code == 200:
-            root = ET.fromstring(resposta.content)
-            itens = root.findall('.//item')
-
-            gatilhos = [
-                "trânsito", "acidente", "interdit", "engarraf", "linha vermelha", 
-                "linha amarela", "avenida brasil", "ponte rio", "bombeir", 
-                "trens", "brt", "vlt", "metrô", "alagamento", "colisão", "capotou"
-            ]
-            
-            alertas_encontrados = 0
-
-            for item in itens:
-                titulo = item.find('title').text
-                titulo_lower = titulo.lower()
-
-                if any(palavra in titulo_lower for palabra in gatilhos):
-                    emoji = "🚨"
-                    if any(p in titulo_lower for p in ["brt", "trens", "metrô", "vlt"]):
-                        emoji = "🚇"
-                    elif any(p in titulo_lower for p in ["acidente", "colisão", "capotou"]):
-                        emoji = "💥"
-                    elif any(p in titulo_lower for p in ["chuva", "alagamento", "bolsa d"]):
-                        emoji = "🌧️"
-                    elif "interdit" in titulo_lower:
-                        emoji = "🚫"
-
-                    txt += f"{emoji} • {titulo}\n\n"
-                    alertas_encontrados += 1
-                    
-                    if alertas_encontrados >= 5:
-                        break
-
-            if alertas_encontrados == 0:
-                txt += "✅ Nenhuma ocorrência de trânsito ou interdição crítica registrada agora.\n"
-        else:
-            txt += f"❌ Central de trânsito indisponível (Status: {resposta.status_code}).\n"
-
-        txt += "---------------------\n💡 Dirija com cuidado!"
-        bot.reply_to(message, txt, parse_mode="Markdown")
-
-    except Exception as e:
-        bot.reply_to(message, f"❌ Erro trânsito: {e}")
-
-# =========================================================
-# CHAT (TEXTO LIVRE COM CÉREBRO INTEGRADO À INTERNET)
-# =========================================================
-@bot.message_handler(func=lambda m: True)
-def responder_texto_livre(message):
-    texto_usuario = message.text
-
-    if texto_usuario.startswith('/'):
-        return
-
-    bot.send_chat_action(message.chat.id, 'typing')
-    resposta_ia = chamar_gemini_com_busca(texto_usuario)
-
-    try:
-        bot.reply_to(message, resposta_ia, parse_mode="Markdown")
-    except Exception:
-        bot.reply_to(message, resposta_ia)
-
-# =========================================================
-# WEB SERVER FLASK (SAÚDE DO SERVIDOR)
-# =========================================================
-@app.route('/')
-def home():
-    return f"🧠 Muth AI Server está ONLINE - {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
-
-# =========================================================
-# INICIALIZAÇÃO DO ECOSSISTEMA COM ENCERRAMENTO LIMPO (DAEMON)
-# =========================================================
-if __name__ == '__main__':
-    print("==================================================")
-    print("🧠 MUTH AI ONLINE & CONFIGURADA")
-    print("==================================================")
-
-    t = threading.Thread(target=bot.infinity_polling)
-    t.daemon = True
-    t.start()
-    
-    try:
-        app.run(host='0.0.0.0', port=10000, debug=False)
-    except KeyboardInterrupt:
-        print("\n🧠 [Muth AI] Desligando o sistema de forma limpa... Até breve!")
-        sys.exit(0)
-      
+        confianca_final = 38.12 if "PETR4" in ativo and sentimento == "otimista" else round(probabilidades[predicao_id] * 1
+        
