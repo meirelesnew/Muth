@@ -6,7 +6,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+HF_TOKEN = os.environ.get("HF_TOKEN")  # Variável configurada para o Hugging Face
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
@@ -23,35 +23,45 @@ def obter_dados_mercado_simulado(ativo):
         return 45.14, np.array([[0.008, 0.018, 45.05, 44.90]])
     return 28.50, np.array([[-0.005, 0.022, 28.10, 28.40]])
 
-def chamar_gemini_com_busca(pergunta_usuario):
+def chamar_huggingface(pergunta_usuario):
     try:
-        if not GEMINI_API_KEY or GEMINI_API_KEY == "None":
-            return "🧠 (Muth AI) Alerta: A chave GEMINI_API_KEY está vazia ou não configurada no painel do Render!"
+        if not HF_TOKEN:
+            return "🧠 Token do Hugging Face não configurado no Render!"
+            
+        # Usando o modelo oficial Llama 3 de 8 Bilhões de parâmetros da Meta
+        url = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+        headers = {"Authorization": f"Bearer {HF_TOKEN}"}
         
-        # URL atualizada para a API estável v1
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Formatando o prompt no padrão de chat para garantir respostas em português
+        prompt_formatado = f"<|system|>\nVocê é a Muth AI, prestativa e sagaz. Responda em português de forma direta e amigável.\n<|user|>\n{pergunta_usuario}\n<|assistant|>\n"
+        
         payload = {
-            "contents": [{"parts": [{"text": f"Você é a Muth AI, prestativa e sagaz. O usuário está no Rio de Janeiro. Responda de forma direta e amigável: {pergunta_usuario}"}]}],
-            "tools": [{"google_search_retrieval": {}}]
+            "inputs": prompt_formatado,
+            "parameters": {"max_new_tokens": 300, "temperature": 0.7}
         }
+        
         resposta = requests.post(url, json=payload, timeout=15)
         if resposta.status_code == 200:
-            return resposta.json()['candidates'][0]['content']['parts'][0]['text']
-        return f"🧠 Erro na resposta do Gemini (Status: {resposta.status_code}). Verifique se sua API Key está correta no Render."
+            resultado = resposta.json()
+            texto_puro = resultado[0]['generated_text']
+            # Remove o histórico do prompt para entregar apenas a resposta final do bot
+            resposta_ia = texto_puro.split("<|assistant|>\n")[-1].strip()
+            return resposta_ia
+        return f"❌ Erro Hugging Face (Status: {resposta.status_code})"
     except Exception as e:
-        return f"🧠 Erro de processamento: {e}"
+        return f"❌ Erro de processamento: {e}"
 
 @bot.message_handler(commands=['start', 'ajuda'])
 def enviar_boas_vindas(message):
     txt = (
-        "🧠 *MUTH AI • SISTEMA REINICIADO*\n"
+        "🧠 *MUTH AI • MOTOR LLAMA 3 ATIVADO*\n"
         "-----------------------------------------\n"
-        "Estou online e com os sensores corrigidos!\n\n"
-        "*Comandos:*\n"
+        "Servidor online e rodando via Hugging Face API!\n\n"
+        "*Comandos operacionais:*\n"
         "💱 `/cotacao` — Dólar, Euro e Bitcoin estáveis.\n"
         "📈 `/analise PETR4 otimista` — IA de Mercado.\n"
-        "🌤️ `/clima Duque de Caxias` — Meteorologia.\n"
-        "🚧 `/transitorj` — Trânsito real via satélite IA.\n\n"
+        "🌤️ `/clima` — Meteorologia integrada.\n"
+        "🚧 `/transitorj` — Pontos críticos e análise de vias.\n\n"
         "💡 _Pode conversar comigo direto no chat também!_"
     )
     bot.reply_to(message, txt, parse_mode="Markdown")
@@ -63,22 +73,24 @@ def verificar_cotacao(message):
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         res = requests.get("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,BTC-BRL", headers=headers, timeout=10)
         
-        if res.status_code != 200:
-            bot.reply_to(message, f"❌ API de Cotações instável (Status: {res.status_code})")
-            return
-            
-        resposta = res.json()
-        usd, eur, btc = resposta['USDBRL'], resposta['EURBRL'], resposta['BTCBRL']
-        txt = (
-            "💱 *MUTH FINANCE • PARIDADES*\n"
-            "-----------------------------------------\n"
-            f"💵 *Dólar:* R$ {float(usd['bid']):.2f} ({usd['pctChange']}%)\n\n"
-            f"💶 *Euro:* R$ {float(eur['bid']):.2f} ({eur['pctChange']}%)\n\n"
-            f"₿ *Bitcoin:* R$ {float(btc['bid']):.3f} ({btc['pctChange']}%)\n"
-            "-----------------------------------------\n"
-            f"🕒 _Atualizado: {usd['create_date'].split()[1]}_"
-        )
-        bot.reply_to(message, txt, parse_mode="Markdown")
+        if res.status_code == 200:
+            resposta = res.json()
+            usd, eur, btc = resposta['USDBRL'], resposta['EURBRL'], resposta['BTCBRL']
+            txt = (
+                "💱 *MUTH FINANCE • PARIDADES*\n"
+                "-----------------------------------------\n"
+                f"💵 *Dólar:* R$ {float(usd['bid']):.2f} ({usd['pctChange']}%)\n\n"
+                f"💶 *Euro:* R$ {float(eur['bid']):.2f} ({eur['pctChange']}%)\n\n"
+                f"₿ *Bitcoin:* R$ {float(btc['bid']):.3f} ({btc['pctChange']}%)\n"
+                "-----------------------------------------\n"
+                f"🕒 _Atualizado via API Oficial_"
+            )
+            bot.reply_to(message, txt, parse_mode="Markdown")
+        else:
+            bot.send_message(message.chat.id, "⏳ API oficial instável. Consultando base de dados da Muth AI...")
+            prompt = "Escreva de forma sucinta sobre a importância econômica da cotação do Dólar e do Euro hoje no Brasil."
+            resposta_ia = chamar_huggingface(prompt)
+            bot.reply_to(message, resposta_ia)
     except Exception as e:
         bot.reply_to(message, f"❌ Erro cotações: {e}")
 
@@ -137,10 +149,9 @@ def verificar_clima(message):
 @bot.message_handler(commands=['transitorj'])
 def verificar_transito_rj(message):
     try:
-        bot.send_message(message.chat.id, "🚧 Escaneando principais vias do RJ em tempo real...")
-        # Usando a própria Muth AI para pesquisar na internet o trânsito real e atualizado
-        prompt = "Faça um resumo curto, em tópicos diretos, sobre a situação do trânsito AGORA nas principais vias do Rio de Janeiro (Avenida Brasil, Linha Vermelha, Linha Amarela e Ponte Rio-Niterói). Foque apenas em retenções e acidentes de hoje."
-        resposta_ia = chamar_gemini_com_busca(prompt)
+        bot.send_message(message.chat.id, "🚧 Analisando comportamento estrutural das vias do RJ...")
+        prompt = "Enumere de forma muito curta e direta os 3 principais pontos de lentidão crônica no Rio de Janeiro (envolvendo Av. Brasil, Linha Vermelha ou Ponte) e dê uma dica rápida de segurança para quem está dirigindo."
+        resposta_ia = chamar_huggingface(prompt)
         try:
             bot.reply_to(message, resposta_ia, parse_mode="Markdown")
         except Exception:
@@ -152,7 +163,7 @@ def verificar_transito_rj(message):
 def responder_texto_livre(message):
     if message.text.startswith('/'): return
     bot.send_chat_action(message.chat.id, 'typing')
-    resposta_ia = chamar_gemini_com_busca(message.text)
+    resposta_ia = chamar_huggingface(message.text)
     try:
         bot.reply_to(message, resposta_ia, parse_mode="Markdown")
     except Exception:
