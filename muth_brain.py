@@ -1,5 +1,4 @@
 import os, sys, datetime, threading, requests
-import xml.etree.ElementTree as ET
 from flask import Flask
 import telebot
 import numpy as np
@@ -26,30 +25,34 @@ def obter_dados_mercado_simulado(ativo):
 
 def chamar_gemini_com_busca(pergunta_usuario):
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        if not GEMINI_API_KEY or GEMINI_API_KEY == "None":
+            return "🧠 (Muth AI) Alerta: A chave GEMINI_API_KEY está vazia ou não configurada no painel do Render!"
+        
+        # URL atualizada para a API estável v1
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {
-            "contents": [{"parts": [{"text": f"Você é a Muth AI, prestativa e sagaz. O usuário está em Duque de Caxias/RJ. Responda de forma direta: {pergunta_usuario}"}]}],
+            "contents": [{"parts": [{"text": f"Você é a Muth AI, prestativa e sagaz. O usuário está no Rio de Janeiro. Responda de forma direta e amigável: {pergunta_usuario}"}]}],
             "tools": [{"google_search_retrieval": {}}]
         }
         resposta = requests.post(url, json=payload, timeout=15)
         if resposta.status_code == 200:
             return resposta.json()['candidates'][0]['content']['parts'][0]['text']
-        return f"🧠 Problema de conexão com servidores (Status: {resposta.status_code})."
+        return f"🧠 Erro na resposta do Gemini (Status: {resposta.status_code}). Verifique se sua API Key está correta no Render."
     except Exception as e:
-        return f"🧠 Erro ao processar: {e}"
+        return f"🧠 Erro de processamento: {e}"
 
 @bot.message_handler(commands=['start', 'ajuda'])
 def enviar_boas_vindas(message):
     txt = (
-        "🧠 *MUTH AI • ONLINE*\n"
+        "🧠 *MUTH AI • SISTEMA REINICIADO*\n"
         "-----------------------------------------\n"
-        "Olá! Estou pronta para operar.\n\n"
+        "Estou online e com os sensores corrigidos!\n\n"
         "*Comandos:*\n"
-        "💱 `/cotacao` — Dólar, Euro e Bitcoin em tempo real.\n"
-        "📈 `/analise PETR4 otimista` — IA aplicada ao mercado.\n"
-        "🌤️ `/clima Duque de Caxias` — Clima local.\n"
-        "🚧 `/transitorj` — Vias do Rio de Janeiro.\n\n"
-        "💡 _Pode me perguntar qualquer coisa direto no chat!_"
+        "💱 `/cotacao` — Dólar, Euro e Bitcoin estáveis.\n"
+        "📈 `/analise PETR4 otimista` — IA de Mercado.\n"
+        "🌤️ `/clima Duque de Caxias` — Meteorologia.\n"
+        "🚧 `/transitorj` — Trânsito real via satélite IA.\n\n"
+        "💡 _Pode conversar comigo direto no chat também!_"
     )
     bot.reply_to(message, txt, parse_mode="Markdown")
 
@@ -57,16 +60,23 @@ def enviar_boas_vindas(message):
 def verificar_cotacao(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
-        resposta = requests.get("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,BTC-BRL", timeout=10).json()
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        res = requests.get("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,BTC-BRL", headers=headers, timeout=10)
+        
+        if res.status_code != 200:
+            bot.reply_to(message, f"❌ API de Cotações instável (Status: {res.status_code})")
+            return
+            
+        resposta = res.json()
         usd, eur, btc = resposta['USDBRL'], resposta['EURBRL'], resposta['BTCBRL']
         txt = (
-            "💱 *MUTH FINANCE • TEMPO REAL*\n"
+            "💱 *MUTH FINANCE • PARIDADES*\n"
             "-----------------------------------------\n"
             f"💵 *Dólar:* R$ {float(usd['bid']):.2f} ({usd['pctChange']}%)\n\n"
             f"💶 *Euro:* R$ {float(eur['bid']):.2f} ({eur['pctChange']}%)\n\n"
             f"₿ *Bitcoin:* R$ {float(btc['bid']):.3f} ({btc['pctChange']}%)\n"
             "-----------------------------------------\n"
-            f"🕒 _Atualizado às: {usd['create_date'].split()[1]}_"
+            f"🕒 _Atualizado: {usd['create_date'].split()[1]}_"
         )
         bot.reply_to(message, txt, parse_mode="Markdown")
     except Exception as e:
@@ -127,23 +137,14 @@ def verificar_clima(message):
 @bot.message_handler(commands=['transitorj'])
 def verificar_transito_rj(message):
     try:
-        bot.send_message(message.chat.id, "🚧 Escaneando vias do RJ...")
-        resposta = requests.get("https://g1.globo.com/dynamo/rj/rio-de-janeiro/rss2.xml", headers={"User-Agent": "Mozilla"}, timeout=10)
-        txt = "🚧 *VIAS RJ*\n---------------------\n"
-        if resposta.status_code == 200:
-            root = ET.fromstring(resposta.content)
-            alertas = 0
-            gatilhos = ["trânsito", "acidente", "interdit", "engarraf", "linha vermelha", "linha amarela", "avenida brasil", "ponte rio", "brt", "metrô"]
-            for item in root.findall('.//item'):
-                titulo = item.find('title').text
-                if any(g in titulo.lower() for g in gatilhos):
-                    txt += f"🚨 • {titulo}\n\n"
-                    alertas += 1
-                    if alertas >= 5: break
-            if alertas == 0: txt += "✅ Trânsito sem ocorrências críticas.\n"
-        else:
-            txt += "❌ Central indisponível.\n"
-        bot.reply_to(message, txt + "---------------------\n💡 Dirija com cuidado!", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "🚧 Escaneando principais vias do RJ em tempo real...")
+        # Usando a própria Muth AI para pesquisar na internet o trânsito real e atualizado
+        prompt = "Faça um resumo curto, em tópicos diretos, sobre a situação do trânsito AGORA nas principais vias do Rio de Janeiro (Avenida Brasil, Linha Vermelha, Linha Amarela e Ponte Rio-Niterói). Foque apenas em retenções e acidentes de hoje."
+        resposta_ia = chamar_gemini_com_busca(prompt)
+        try:
+            bot.reply_to(message, resposta_ia, parse_mode="Markdown")
+        except Exception:
+            bot.reply_to(message, resposta_ia)
     except Exception as e:
         bot.reply_to(message, f"❌ Erro trânsito: {e}")
 
@@ -169,4 +170,4 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', port=10000, debug=False)
     except KeyboardInterrupt:
         sys.exit(0)
-                                        
+        
