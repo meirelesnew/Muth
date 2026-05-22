@@ -229,5 +229,7 @@ if __name__ == '__main__':
     t = threading.Thread(target=bot.infinity_polling)
     t.daemon = True
     t.start()
-    app.run(host='0.0.0.0', port=10000, debug=False)
-    
+    try:
+        app.run(host='0.0.0.0', port=10000, debug=False)
+    except KeyboardInterrupt:
+        sys.exit(0)
