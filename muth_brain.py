@@ -185,7 +185,7 @@ def verificar_transito_customizado(message):
         bot.send_message(message.chat.id, f"🚧 Analisando comportamento viário de: *{local_especifico}*...", parse_mode="Markdown")
         
         prompt = (
-            f"Faça uma análise geográfica detalhada do trânsito para o seguinte local no Rio de Janeiro: {local_especifico}. "
+            f"Faça uma analysis geográfica detalhada do trânsito para o seguinte local no Rio de Janeiro: {local_especifico}. "
             "Aponte quais são os gargalos históricos dessa via/bairro, os horários de pico mais complexos e sugira rotas alternativas reais e existentes. "
             "ATENÇÃO CRÍTICA: Você não possui dados de satélite de hoje em tempo real, portanto, atue com base no seu conhecimento geográfico histórico. "
             "NUNCA crie nomes inventados de pontes, ruas ou viadutos (proibido inventar coisas como Ponte do Açaí)."
@@ -196,7 +196,7 @@ def verificar_transito_customizado(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Erro ao buscar trânsito: {e}")
 
-# NOVO COMANDO: Rastreamento de Objetos (Correios via Linketrack)
+# COMANDO CORRIGIDO COM TRATAMENTO DE ERRO DE CONEXÃO
 @bot.message_handler(commands=['rastreio', 'rastrear'])
 def verificar_rastreio(message):
     try:
@@ -207,17 +207,21 @@ def verificar_rastreio(message):
             
         codigo_objeto = comando_partes[1].upper()
         
-        # Validação básica do tamanho do código padrão dos Correios (13 dígitos)
         if len(codigo_objeto) != 13:
             bot.reply_to(message, "❌ Código inválido! O padrão dos Correios deve conter 13 dígitos (Ex: AA123456789BR).")
             return
             
         bot.send_message(message.chat.id, f"🔍 Buscando rastreamento do objeto *{codigo_objeto}* nos Correios...", parse_mode="Markdown")
         
-        # Endpoint público estável do Linketrack com credenciais públicas de testes
         url = f"https://api.linketrack.com/v1/track/json?user=teste&token=1fed60e6e761614742a7ea473070445d4c827c62b48e025810b42f21054bdf1d&codigo={codigo_objeto}"
-        res = requests.get(url, timeout=12)
         
+        # Proteção contra quedas de DNS/Internet externas
+        try:
+            res = requests.get(url, timeout=10)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+            bot.reply_to(message, "🌐 *Servidor Indisponível:*\nNão consegui me conectar ao banco de dados de rastreamento neste momento. O sistema dos Correios ou a API parceira podem estar fora do ar. Tente novamente em instantes!", parse_mode="Markdown")
+            return
+
         if res.status_code == 200:
             dados = res.json()
             eventos = dados.get('eventos', [])
@@ -226,9 +230,7 @@ def verificar_rastreio(message):
                 bot.reply_to(message, f"📦 *{codigo_objeto}*\nObjeto ainda não postado ou código inexistente na base dos Correios.")
                 return
                 
-            # O primeiro item da lista 'eventos' é sempre a movimentação mais recente
             ultimo_evento = eventos[0]
-            
             txt = (
                 f"📦 *RASTREIO CORREIOS • {codigo_objeto}*\n"
                 "-----------------------------------------\n"
@@ -237,7 +239,6 @@ def verificar_rastreio(message):
                 f"📍 *Unidade/Local:* {ultimo_evento.get('local')}\n"
             )
             
-            # Adiciona detalhes extras se houver (ex: "encaminhado para Unidade de Tratamento...")
             detalhes = ultimo_evento.get('subStatus', [])
             if detalhes:
                 txt += f"➡️ _Detalhe: {detalhes[0]}_\n"
@@ -247,10 +248,10 @@ def verificar_rastreio(message):
             
             bot.reply_to(message, txt, parse_mode="Markdown")
         else:
-            bot.reply_to(message, f"⏳ Servidor de rastreio instável (Status: {res.status_code}). Tente novamente em alguns instantes.")
+            bot.reply_to(message, f"⏳ O servidor de rastreio respondeu com instabilidade (Status: {res.status_code}). Aguarde uns minutos e tente novamente.")
             
     except Exception as e:
-        bot.reply_to(message, f"❌ Erro operacional no motor de rastreamento: {e}")
+        bot.reply_to(message, f"❌ Erro inesperado no módulo de rastreio: {str(e)[:50]}")
 
 # Handler para Conversas Livres (Chatbot via Groq)
 @bot.message_handler(func=lambda m: True)
