@@ -30,7 +30,7 @@ def obter_dados_mercado_simulado(ativo):
         return 45.14, np.array([[0.008, 0.018, 45.05, 44.90]])
     return 28.50, np.array([[-0.005, 0.022, 28.10, 28.40]])
 
-# Função de Integração com a Groq via requisição direta (Llama 3)
+# Função de Integração com a Groq (Llama 3.1)
 def chamar_groq(pergunta_usuario):
     try:
         if not GROQ_API_KEY:
@@ -43,7 +43,7 @@ def chamar_groq(pergunta_usuario):
         }
         
         payload = {
-            "model": "llama3-8b-8192",
+            "model": "llama-3.1-8b-instant",  # Modelo atualizado e altamente estável
             "messages": [
                 {
                     "role": "system",
@@ -62,9 +62,13 @@ def chamar_groq(pergunta_usuario):
         if resposta.status_code == 200:
             dados = resposta.json()
             return dados['choices'][0]['message']['content']
-        elif resposta.status_code == 401:
-            return "❌ Erro de comunicação com a Groq (Status: 401). Verifique se a sua API Key da Groq (gsk_...) está correta no Render."
-        return f"❌ Erro na API Groq (Status: {resposta.status_code})."
+        else:
+            # Captura o erro exato detalhado retornado pela Groq
+            try:
+                detalhe_erro = resposta.json().get('error', {}).get('message', 'Sem detalhes')
+            except:
+                detalhe_erro = resposta.text
+            return f"❌ Erro na Groq (Status: {resposta.status_code}): {detalhe_erro}"
         
     except Exception as e:
         return f"❌ Erro de processamento no motor Groq: {e}"
@@ -73,7 +77,7 @@ def chamar_groq(pergunta_usuario):
 @bot.message_handler(commands=['start', 'ajuda'])
 def enviar_boas_vindas(message):
     txt = (
-        "🧠 *MUTH AI • MOTOR GROQ LLAMA 3 ATIVADO*\n"
+        "🧠 *MUTH AI • MOTOR GROQ ATIVADO*\n"
         "-----------------------------------------\n"
         "Sistema operando em velocidade máxima no Render!\n\n"
         "*Comandos disponíveis:*\n"
@@ -200,4 +204,3 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', port=10000, debug=False)
     except KeyboardInterrupt:
         sys.exit(0)
-        
