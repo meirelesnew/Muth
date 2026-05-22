@@ -43,7 +43,7 @@ def chamar_groq(pergunta_usuario):
         }
         
         payload = {
-            "model": "llama-3.1-8b-instant",  # Modelo atualizado e altamente estável
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system",
@@ -63,7 +63,6 @@ def chamar_groq(pergunta_usuario):
             dados = resposta.json()
             return dados['choices'][0]['message']['content']
         else:
-            # Captura o erro exato detalhado retornado pela Groq
             try:
                 detalhe_erro = resposta.json().get('error', {}).get('message', 'Sem detalhes')
             except:
@@ -84,7 +83,7 @@ def enviar_boas_vindas(message):
         "💱 `/cotacao` — Dólar, Euro e Bitcoin em tempo real.\n"
         "📈 `/analise ATIVO sentimento` — IA de análise de ativos.\n"
         "🌤️ `/clima` — Condições meteorológicas.\n"
-        "🚧 `/transitorj` — Diagnóstico de trânsito no RJ.\n\n"
+        "🚧 `/transito LUGAR` — Análise de trânsito geográfica (Ex: /transito Av Brasil).\n\n"
         "💡 _Basta digitar qualquer mensagem para conversar comigo via Groq!_"
     )
     bot.reply_to(message, txt, parse_mode="Markdown")
@@ -173,15 +172,31 @@ def verificar_clima(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Erro clima: {e}")
 
-@bot.message_handler(commands=['transitorj'])
-def verificar_transito_rj(message):
+# Comando de Trânsito Dinâmico Corrigido
+@bot.message_handler(commands=['transito'])
+def verificar_transito_customizado(message):
     try:
-        bot.send_message(message.chat.id, "🚧 Mapeando principais eixos de mobilidade do Rio de Janeiro...")
-        prompt = "Liste de forma curta e em tópicos os 3 pontos históricos mais problemáticos de trânsito no RJ (Av. Brasil, Linha Vermelha, Ponte) e dê uma dica de ouro de rota alternativa."
+        comando_partes = message.text.split(maxsplit=1)
+        
+        if len(comando_partes) < 2:
+            bot.reply_to(message, "🚧 *Como usar:* Digite `/transito` seguido do local.\nExemplo: `/transito Linha Amarela`", parse_mode="Markdown")
+            return
+            
+        local_especifico = comando_partes[1]
+        bot.send_message(message.chat.id, f"🚧 Analisando comportamento viário de: *{local_especifico}*...", parse_mode="Markdown")
+        
+        prompt = (
+            f"Faça uma análise geográfica detalhada do trânsito para o seguinte local no Rio de Janeiro: {local_especifico}. "
+            "Aponte quais são os gargalos históricos dessa via/bairro, os horários de pico mais complexos e sugira rotas alternativas reais e existentes. "
+            "ATENÇÃO CRÍTICA: Você não possui dados de satélite de hoje em tempo real, portanto, atue com base no seu conhecimento geográfico histórico. "
+            "NUNCA crie nomes inventados de pontes, ruas ou viadutos (proibido inventar coisas como Ponte do Açaí)."
+        )
+        
         resposta_ia = chamar_groq(prompt)
         bot.reply_to(message, resposta_ia)
+        
     except Exception as e:
-        bot.reply_to(message, f"❌ Erro trânsito: {e}")
+        bot.reply_to(message, f"❌ Erro ao buscar trânsito: {e}")
 
 # Handler para Conversas Livres (Chatbot via Groq)
 @bot.message_handler(func=lambda m: True)
@@ -204,3 +219,4 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', port=10000, debug=False)
     except KeyboardInterrupt:
         sys.exit(0)
+        
