@@ -12,7 +12,8 @@ from sklearn.preprocessing import StandardScaler
 
 # Configuração de Variáveis de Ambiente do Render
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# O código lê automaticamente a chave do Google que está no slot do Render
+GEMINI_API_KEY = os.environ.get("GROQ_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
@@ -30,49 +31,43 @@ def obter_dados_mercado_simulado(ativo):
         return 45.14, np.array([[0.008, 0.018, 45.05, 44.90]])
     return 28.50, np.array([[-0.005, 0.022, 28.10, 28.40]])
 
-# Função de Integração com a API Ultra-Rápida da Groq
-def chamar_groq(pergunta_usuario):
+# Função de Integração Direta com o Gemini (Google AI Studio)
+def chamar_gemini(pergunta_usuario):
     try:
-        if not GROQ_API_KEY:
-            return "🧠 Chave da Groq não configurada no Render!"
+        if not GEMINI_API_KEY:
+            return "🧠 Chave da API do Gemini não localizada no Render!"
             
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
         
         payload = {
-            "model": "llama3-8b-8192",
-            "messages": [
-                {
-                    "role": "system", 
-                    "content": "Você é a Muth AI, prestativa, sagaz e simpática. Responda sempre em português brasileiro de forma direta, clara e sem enrolação."
-                },
-                {
-                    "role": "user", 
-                    "content": pergunta_usuario
-                }
-            ],
-            "temperature": 0.7
+            "contents": [{
+                "parts": [{
+                    "text": f"Você é a Muth AI, prestativa, sagaz e simpática. Responda sempre em português brasileiro de forma direta, clara e sem enrolação. Pergunta: {pergunta_usuario}"
+                }]
+            }],
+            "generationConfig": {
+                "temperature": 0.7
+            }
         }
         
-        resposta = requests.post(url, json=payload, timeout=12)
+        resposta = requests.post(url, json=payload, headers=headers, timeout=12)
         
         if resposta.status_code == 200:
-            return resposta.json()['choices'][0]['message']['content']
-        return f"❌ Erro de comunicação com a Groq (Status: {resposta.status_code})"
+            dados = resposta.json()
+            return dados['candidates'][0]['content']['parts'][0]['text']
+        return f"❌ Erro na API Gemini (Status: {resposta.status_code}). Verifique se a chave copiada do Google AI Studio está correta."
         
     except Exception as e:
-        return f"❌ Erro de processamento na Groq: {e}"
+        return f"❌ Erro de processamento no motor Gemini: {e}"
 
 # Comandos do Telegram
 @bot.message_handler(commands=['start', 'ajuda'])
 def enviar_boas_vindas(message):
     txt = (
-        "🧠 *MUTH AI • MOTOR GROQ LLAMA 3 ATIVADO*\n"
+        "🧠 *MUTH AI • MOTOR GEMINI FLASH ATIVADO*\n"
         "-----------------------------------------\n"
-        "Sistema operando em velocidade máxima e 100% estável!\n\n"
+        "Sistema operando em velocidade máxima e 100% estável no Render!\n\n"
         "*Comandos disponíveis:*\n"
         "💱 `/cotacao` — Dólar, Euro e Bitcoin em tempo real.\n"
         "📈 `/analise PETR4 otimista` — IA de análise de ativos.\n"
@@ -104,7 +99,7 @@ def verificar_cotacao(message):
             bot.reply_to(message, txt, parse_mode="Markdown")
         else:
             bot.send_message(message.chat.id, "⏳ API de cotações instável. Consultando cérebro artificial...")
-            resposta_ia = chamar_groq("Escreva um parágrafo rápido sobre o cenário econômico do Dólar hoje no mercado brasileiro.")
+            resposta_ia = chamar_gemini("Escreva um parágrafo rápido sobre o cenário econômico do Dólar hoje no mercado brasileiro.")
             bot.reply_to(message, resposta_ia)
     except Exception as e:
         bot.reply_to(message, f"❌ Erro cotações: {e}")
@@ -171,7 +166,7 @@ def verificar_transito_rj(message):
     try:
         bot.send_message(message.chat.id, "🚧 Mapeando principais eixos de mobilidade do Rio de Janeiro...")
         prompt = "Liste de forma curta e em tópicos os 3 pontos históricos mais problemáticos de trânsito no RJ (Av. Brasil, Linha Vermelha, Ponte) e dê uma dica de ouro de rota alternativa ou segurança."
-        resposta_ia = chamar_groq(prompt)
+        resposta_ia = chamar_gemini(prompt)
         bot.reply_to(message, resposta_ia)
     except Exception as e:
         bot.reply_to(message, f"❌ Erro trânsito: {e}")
@@ -181,13 +176,13 @@ def verificar_transito_rj(message):
 def responder_texto_livre(message):
     if message.text.startswith('/'): return
     bot.send_chat_action(message.chat.id, 'typing')
-    resposta_ia = chamar_groq(message.text)
+    resposta_ia = chamar_gemini(message.text)
     bot.reply_to(message, resposta_ia)
 
 # Endpoint de Verificação de Saúde do Servidor (Render Ping)
 @app.route('/')
 def home():
-    return f"🧠 Muth AI Server ONLINE (Groq Engine) - {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    return f"🧠 Muth AI Server ONLINE (Gemini Engine) - {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
 
 if __name__ == '__main__':
     t = threading.Thread(target=bot.infinity_polling)
