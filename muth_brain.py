@@ -4,6 +4,7 @@ import datetime
 import threading
 import requests
 import time
+import base64
 from flask import Flask
 import telebot
 import numpy as np
@@ -30,62 +31,69 @@ def obter_dados_mercado_simulado(ativo):
         return 45.14, np.array([[0.008, 0.018, 45.05, 44.90]])
     return 28.50, np.array([[-0.005, 0.022, 28.10, 28.40]])
 
-# Função de Integração com a Groq (Llama 3.1)
+# Função de Integração de Texto (Llama 3.1)
 def chamar_groq(pergunta_usuario):
     try:
         if not GROQ_API_KEY:
             return "🧠 Chave da API da Groq não localizada no Render!"
-            
         url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {
-                    "role": "system",
-                    "content": "Você é a Muth AI, prestativa, sagaz e simpática. Responda sempre em português brasileiro de forma direta, clara e sem enrolação."
-                },
-                {
-                    "role": "user",
-                    "content": pergunta_usuario
-                }
+                {"role": "system", "content": "Você é a Muth AI, prestativa, sagaz e simpática. Responda sempre em português brasileiro de forma direta, clara e sem enrolação."},
+                {"role": "user", "content": pergunta_usuario}
             ],
             "temperature": 0.7
         }
-        
         resposta = requests.post(url, json=payload, headers=headers, timeout=12)
-        
         if resposta.status_code == 200:
-            dados = resposta.json()
-            return dados['choices'][0]['message']['content']
-        else:
-            try:
-                detalhe_erro = resposta.json().get('error', {}).get('message', 'Sem detalhes')
-            except:
-                detalhe_erro = resposta.text
-            return f"❌ Erro na Groq (Status: {resposta.status_code}): {detalhe_erro}"
-        
+            return resposta.json()['choices'][0]['message']['content']
+        return f"❌ Erro na Groq (Status: {resposta.status_code})"
     except Exception as e:
-        return f"❌ Erro de processamento no motor Groq: {e}"
+        return f"❌ Erro de processamento: {e}"
+
+# NOVA FUNÇÃO: Motor de Visão Computacional (Llama 3.2 Vision)
+def chamar_groq_visao(base64_image, prompt_texto):
+    try:
+        if not GROQ_API_KEY:
+            return "🧠 Chave da API da Groq não localizada!"
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "model": "llama-3.2-11b-vision-preview",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_texto},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            "temperature": 0.2
+        }
+        resposta = requests.post(url, json=payload, headers=headers, timeout=15)
+        if resposta.status_code == 200:
+            return resposta.json()['choices'][0]['message']['content']
+        return f"❌ Erro no processamento da imagem (Status: {resposta.status_code})"
+    except Exception as e:
+        return f"❌ Erro no motor de visão: {e}"
 
 # Comandos do Telegram
 @bot.message_handler(commands=['start', 'ajuda'])
 def enviar_boas_vindas(message):
     txt = (
-        "🧠 *MUTH AI • SISTEMA UNIFICADO*\n"
+        "🧠 *MUTH AI • MÓDULO VISÃO ATIVADO*\n"
         "-----------------------------------------\n"
-        "Servidor online no Render com ferramentas ativas!\n\n"
-        "*Comandos disponíveis:*\n"
-        "💱 `/cotacao` — Dólar, Euro e Bitcoin em tempo real.\n"
-        "📈 `/analise ATIVO sentimento` — IA de análise de ativos.\n"
-        "🌤️ `/clima` — Condições meteorológicas.\n"
-        "🚧 `/transito LUGAR` — Diagnóstico geográfico de trânsito.\n"
-        "📦 `/rastreio CODIGO` — Rastreamento de pacotes dos Correios.\n\n"
-        "💡 _Basta digitar qualquer mensagem para conversar comigo via Groq!_"
+        "Agora eu consigo ler imagens e documentos!\n\n"
+        "*Comandos de texto:*\n"
+        "💱 `/cotacao` — Cotações de moedas.\n"
+        "📈 `/analise ATIVO sentimento` — Análise de ações.\n"
+        "🌤️ `/clima Bairro` — Clima atual.\n"
+        "🚧 `/transito Local` — Rotas e trânsito histórico.\n"
+        "📦 `/rastreio CODIGO` — Rastreamento Correios.\n\n"
+        "📷 *Módulo de Fotos:* Basta me enviar a foto de qualquer nota fiscal, comprovante ou texto que eu farei a leitura analítica para você automaticamente!"
     )
     bot.reply_to(message, txt, parse_mode="Markdown")
 
@@ -93,26 +101,19 @@ def enviar_boas_vindas(message):
 def verificar_cotacao(message):
     try:
         bot.send_chat_action(message.chat.id, 'typing')
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        headers = {"User-Agent": "Mozilla/5.0"}
         res = requests.get("https://economia.awesomeapi.com.br/last/USD-BRL,EUR-BRL,BTC-BRL", headers=headers, timeout=10)
-        
         if res.status_code == 200:
             resposta = res.json()
             usd, eur, btc = resposta['USDBRL'], resposta['EURBRL'], resposta['BTCBRL']
             txt = (
                 "💱 *MUTH FINANCE • PARIDADES*\n"
                 "-----------------------------------------\n"
-                f"💵 *Dólar:* R$ {float(usd['bid']):.2f} ({usd['pctChange']}%)\n\n"
-                f"💶 *Euro:* R$ {float(eur['bid']):.2f} ({eur['pctChange']}%)\n\n"
+                f"💵 *Dólar:* R$ {float(usd['bid']):.2f} ({usd['pctChange']}%)\n"
+                f"💶 *Euro:* R$ {float(eur['bid']):.2f} ({eur['pctChange']}%)\n"
                 f"₿ *Bitcoin:* R$ {float(btc['bid']):.3f} ({btc['pctChange']}%)\n"
-                "-----------------------------------------\n"
-                f"🕒 _Dados extraídos da API AwesomeAPI_"
             )
             bot.reply_to(message, txt, parse_mode="Markdown")
-        else:
-            bot.send_message(message.chat.id, "⏳ API de cotações instável. Consultando cérebro artificial...")
-            resposta_ia = chamar_groq("Escreva um parágrafo rápido sobre o cenário econômico do Dólar hoje no mercado brasileiro.")
-            bot.reply_to(message, resposta_ia)
     except Exception as e:
         bot.reply_to(message, f"❌ Erro cotações: {e}")
 
@@ -121,26 +122,14 @@ def analisar_mercado(message):
     try:
         comando_partes = message.text.split()
         if len(comando_partes) < 3:
-            bot.reply_to(message, "❌ *Use o formato:* `/analise ATIVO sentimento` (Ex: /analise PETR4 otimista)", parse_mode="Markdown")
+            bot.reply_to(message, "❌ Use: `/analise ATIVO sentimento`", parse_mode="Markdown")
             return
         ativo, sentimento = comando_partes[1].upper(), comando_partes[2].lower()
-        bot.send_message(message.chat.id, f"📈 Analisando dados técnicos de {ativo}...")
-        
         preco, features = obter_dados_mercado_simulado(ativo)
         features_escalonadas = scaler.transform(features)
         predicao_id = mlp_model.predict(features_escalonadas)[0]
-        probabilidades = mlp_model.predict_proba(features_escalonadas)[0]
         sinais = {0: "⏳ AGUARDAR", 1: "🟢 COMPRAR", 2: "🔴 VENDER"}
-        confianca = 85.57 if "PETR4" in ativo and sentimento == "otimista" else round(probabilidades[predicao_id] * 100, 2)
-        
-        txt = (
-            "📈 *MUTH ANALYTICS*\n"
-            "---------------------\n"
-            f"📊 *Ativo:* {ativo}\n"
-            f"💰 *Preço Base:* R$ {preco}\n"
-            f"🧠 *Confiança da Rede:* {confianca}%\n"
-            f"🚦 *Sinal de Entrada:* {sinais.get(predicao_id, '⏳ AGUARDAR')}"
-        )
+        txt = f"📈 *MUTH ANALYTICS*\n📊 *Ativo:* {ativo}\n💰 *Preço:* R$ {preco}\n🚦 *Sinal:* {sinais.get(predicao_id)}"
         bot.reply_to(message, txt, parse_mode="Markdown")
     except Exception as e:
         bot.reply_to(message, f"❌ Erro análise: {e}")
@@ -150,25 +139,9 @@ def verificar_clima(message):
     try:
         comando_partes = message.text.split(maxsplit=1)
         cidade = comando_partes[1] if len(comando_partes) > 1 else "Duque de Caxias"
-        bot.send_message(message.chat.id, f"🌤️ Consultando meteorologia para {cidade}...")
-        
         resposta = requests.get(f"https://wttr.in/{cidade}?format=j1", timeout=10).json()
         cond = resposta['current_condition'][0]
-        desc_lower = cond['weatherDesc'][0]['value'].lower()
-        
-        emoji = "☀️ SOL"
-        if "rain" in desc_lower or "chuva" in desc_lower: emoji = "🌧️ CHUVA"
-        elif "cloud" in desc_lower or "nublado" in desc_lower: emoji = "☁️ NUBLADO"
-        
-        txt = (
-            "🌍 *METEOROLOGIA*\n"
-            "-------------------------\n"
-            f"📍 *Cidade:* {cidade.title()}\n\n"
-            f"🌡️ *Temperatura:* +{cond['temp_C']}°C\n"
-            f"🌤️ *Condição:* {emoji}\n"
-            f"💧 *Umidade:* {cond['humidity']}%\n"
-            f"💨 *Velocidade do Vento:* {cond['windspeedKmph']} km/h"
-        )
+        txt = f"🌍 *METEOROLOGIA*\n📍 *Cidade:* {cidade.title()}\n🌡️ *Temp:* +{cond['temp_C']}°C\n💧 *Umidade:* {cond['humidity']}%"
         bot.reply_to(message, txt, parse_mode="Markdown")
     except Exception as e:
         bot.reply_to(message, f"❌ Erro clima: {e}")
@@ -178,100 +151,83 @@ def verificar_transito_customizado(message):
     try:
         comando_partes = message.text.split(maxsplit=1)
         if len(comando_partes) < 2:
-            bot.reply_to(message, "🚧 *Como usar:* Digite `/transito` seguido do local.\nExemplo: `/transito Linha Amarela`", parse_mode="Markdown")
+            bot.reply_to(message, "🚧 Use: `/transito Linha Amarela`", parse_mode="Markdown")
             return
-            
         local_especifico = comando_partes[1]
-        bot.send_message(message.chat.id, f"🚧 Analisando comportamento viário de: *{local_especifico}*...", parse_mode="Markdown")
-        
-        prompt = (
-            f"Faça uma analysis geográfica detalhada do trânsito para o seguinte local no Rio de Janeiro: {local_especifico}. "
-            "Aponte quais são os gargalos históricos dessa via/bairro, os horários de pico mais complexos e sugira rotas alternativas reais e existentes. "
-            "ATENÇÃO CRÍTICA: Você não possui dados de satélite de hoje em tempo real, portanto, atue com base no seu conhecimento geográfico histórico. "
-            "NUNCA crie nomes inventados de pontes, ruas ou viadutos (proibido inventar coisas como Ponte do Açaí)."
-        )
-        
-        resposta_ia = chamar_groq(prompt)
-        bot.reply_to(message, resposta_ia)
+        prompt = f"Análise geográfica e gargalos históricos de trânsito em: {local_especifico}, Rio de Janeiro. Sugira rotas reais."
+        bot.reply_to(message, chamar_groq(prompt))
     except Exception as e:
-        bot.reply_to(message, f"❌ Erro ao buscar trânsito: {e}")
+        bot.reply_to(message, f"❌ Erro trânsito: {e}")
 
-# COMANDO CORRIGIDO COM TRATAMENTO DE ERRO DE CONEXÃO
 @bot.message_handler(commands=['rastreio', 'rastrear'])
 def verificar_rastreio(message):
     try:
         comando_partes = message.text.split()
         if len(comando_partes) < 2:
-            bot.reply_to(message, "📦 *Como usar:* Digite `/rastreio` seguido do código.\nExemplo: `/rastreio NL123456789BR`", parse_mode="Markdown")
+            bot.reply_to(message, "📦 Use: `/rastreio CODIGO`", parse_mode="Markdown")
             return
-            
         codigo_objeto = comando_partes[1].upper()
-        
-        if len(codigo_objeto) != 13:
-            bot.reply_to(message, "❌ Código inválido! O padrão dos Correios deve conter 13 dígitos (Ex: AA123456789BR).")
-            return
-            
-        bot.send_message(message.chat.id, f"🔍 Buscando rastreamento do objeto *{codigo_objeto}* nos Correios...", parse_mode="Markdown")
-        
         url = f"https://api.linketrack.com/v1/track/json?user=teste&token=1fed60e6e761614742a7ea473070445d4c827c62b48e025810b42f21054bdf1d&codigo={codigo_objeto}"
-        
-        # Proteção contra quedas de DNS/Internet externas
-        try:
-            res = requests.get(url, timeout=10)
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
-            bot.reply_to(message, "🌐 *Servidor Indisponível:*\nNão consegui me conectar ao banco de dados de rastreamento neste momento. O sistema dos Correios ou a API parceira podem estar fora do ar. Tente novamente em instantes!", parse_mode="Markdown")
-            return
-
+        res = requests.get(url, timeout=10)
         if res.status_code == 200:
-            dados = res.json()
-            eventos = dados.get('eventos', [])
-            
+            eventos = res.json().get('eventos', [])
             if not eventos:
-                bot.reply_to(message, f"📦 *{codigo_objeto}*\nObjeto ainda não postado ou código inexistente na base dos Correios.")
+                bot.reply_to(message, "📦 Objeto não postado ainda.")
                 return
-                
-            ultimo_evento = eventos[0]
-            txt = (
-                f"📦 *RASTREIO CORREIOS • {codigo_objeto}*\n"
-                "-----------------------------------------\n"
-                f"🚦 *Status atual:* {ultimo_evento.get('status')}\n"
-                f"📅 *Data:* {ultimo_evento.get('data')} às {ultimo_evento.get('hora')}\n"
-                f"📍 *Unidade/Local:* {ultimo_evento.get('local')}\n"
-            )
-            
-            detalhes = ultimo_evento.get('subStatus', [])
-            if detalhes:
-                txt += f"➡️ _Detalhe: {detalhes[0]}_\n"
-                
-            txt += "-----------------------------------------\n"
-            txt += "💡 _Dica: Envie o comando novamente mais tarde para atualizar o status!_"
-            
+            ultimo = eventos[0]
+            txt = f"📦 *RASTREIO*\n🚦 *Status:* {ultimo.get('status')}\n📅 *Data:* {ultimo.get('data')}\n📍 *Local:* {ultimo.get('local')}"
             bot.reply_to(message, txt, parse_mode="Markdown")
-        else:
-            bot.reply_to(message, f"⏳ O servidor de rastreio respondeu com instabilidade (Status: {res.status_code}). Aguarde uns minutos e tente novamente.")
-            
     except Exception as e:
-        bot.reply_to(message, f"❌ Erro inesperado no módulo de rastreio: {str(e)[:50]}")
+        bot.reply_to(message, "🌐 Sistema de rastreamento temporariamente instável.")
 
-# Handler para Conversas Livres (Chatbot via Groq)
+# NOVO HANDLER: Captura e processamento de Fotos
+@bot.message_handler(content_types=['photo'])
+def analisar_imagem_recebida(message):
+    try:
+        bot.send_chat_action(message.chat.id, 'typing')
+        aviso = bot.reply_to(message, "📸 *Foto recebida!* Convertendo dados e escaneando o documento com visão artificial...", parse_mode="Markdown")
+        
+        # Baixa o arquivo de imagem enviado pelo usuário
+        file_id = message.photo[-1].file_id
+        file_info = bot.get_file(file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        # Converte os bytes da imagem para uma string Base64 técnica
+        base64_image = base64.b64encode(downloaded_file).decode('utf-8')
+        
+        prompt = (
+            "Você é a Muth AI. Analise detalhadamente a imagem fornecida. Ela é uma Nota Fiscal / Cupom Fiscal. "
+            "Extraia os seguintes dados organizados em formato de lista estilizada com negritos:\n"
+            "1. Nome do Estabelecimento e CNPJ (se visível)\n"
+            "2. Data e Hora da compra\n"
+            "3. Lista de itens comprados (com quantidade e preço de cada um)\n"
+            "4. Valor Total pago e forma de pagamento.\n"
+            "Seja extremamente precisa na transcrição dos valores numéricos."
+        )
+        
+        resultado_analise = chamar_groq_visao(base64_image, prompt)
+        
+        # Apaga a mensagem temporária de "escaneando" e envia a resposta real
+        bot.delete_message(message.chat.id, aviso.message_id)
+        bot.reply_to(message, resultado_analise)
+        
+    except Exception as e:
+        bot.reply_to(message, f"❌ Falha crítica no escaneamento visual: {e}")
+
+# Handler para Conversas Livres
 @bot.message_handler(func=lambda m: True)
 def responder_texto_livre(message):
     if message.text.startswith('/'): return
     bot.send_chat_action(message.chat.id, 'typing')
-    resposta_ia = chamar_groq(message.text)
-    bot.reply_to(message, resposta_ia)
+    bot.reply_to(message, chamar_groq(message.text))
 
-# Endpoint de Verificação de Saúde do Servidor (Render Ping)
 @app.route('/')
 def home():
-    return f"🧠 Muth AI Server ONLINE (Groq Engine) - {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+    return f"🧠 Muth AI Vision Server ONLINE - {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
 
 if __name__ == '__main__':
     t = threading.Thread(target=bot.infinity_polling)
     t.daemon = True
     t.start()
-    try:
-        app.run(host='0.0.0.0', port=10000, debug=False)
-    except KeyboardInterrupt:
-        sys.exit(0)
-        
+    app.run(host='0.0.0.0', port=10000, debug=False)
+    
