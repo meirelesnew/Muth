@@ -76,14 +76,15 @@ def chamar_groq(pergunta_usuario):
 @bot.message_handler(commands=['start', 'ajuda'])
 def enviar_boas_vindas(message):
     txt = (
-        "🧠 *MUTH AI • MOTOR GROQ ATIVADO*\n"
+        "🧠 *MUTH AI • SISTEMA UNIFICADO*\n"
         "-----------------------------------------\n"
-        "Sistema operando em velocidade máxima no Render!\n\n"
+        "Servidor online no Render com ferramentas ativas!\n\n"
         "*Comandos disponíveis:*\n"
         "💱 `/cotacao` — Dólar, Euro e Bitcoin em tempo real.\n"
         "📈 `/analise ATIVO sentimento` — IA de análise de ativos.\n"
         "🌤️ `/clima` — Condições meteorológicas.\n"
-        "🚧 `/transito LUGAR` — Análise de trânsito geográfica (Ex: /transito Av Brasil).\n\n"
+        "🚧 `/transito LUGAR` — Diagnóstico geográfico de trânsito.\n"
+        "📦 `/rastreio CODIGO` — Rastreamento de pacotes dos Correios.\n\n"
         "💡 _Basta digitar qualquer mensagem para conversar comigo via Groq!_"
     )
     bot.reply_to(message, txt, parse_mode="Markdown")
@@ -172,12 +173,10 @@ def verificar_clima(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Erro clima: {e}")
 
-# Comando de Trânsito Dinâmico Corrigido
 @bot.message_handler(commands=['transito'])
 def verificar_transito_customizado(message):
     try:
         comando_partes = message.text.split(maxsplit=1)
-        
         if len(comando_partes) < 2:
             bot.reply_to(message, "🚧 *Como usar:* Digite `/transito` seguido do local.\nExemplo: `/transito Linha Amarela`", parse_mode="Markdown")
             return
@@ -194,9 +193,64 @@ def verificar_transito_customizado(message):
         
         resposta_ia = chamar_groq(prompt)
         bot.reply_to(message, resposta_ia)
-        
     except Exception as e:
         bot.reply_to(message, f"❌ Erro ao buscar trânsito: {e}")
+
+# NOVO COMANDO: Rastreamento de Objetos (Correios via Linketrack)
+@bot.message_handler(commands=['rastreio', 'rastrear'])
+def verificar_rastreio(message):
+    try:
+        comando_partes = message.text.split()
+        if len(comando_partes) < 2:
+            bot.reply_to(message, "📦 *Como usar:* Digite `/rastreio` seguido do código.\nExemplo: `/rastreio NL123456789BR`", parse_mode="Markdown")
+            return
+            
+        codigo_objeto = comando_partes[1].upper()
+        
+        # Validação básica do tamanho do código padrão dos Correios (13 dígitos)
+        if len(codigo_objeto) != 13:
+            bot.reply_to(message, "❌ Código inválido! O padrão dos Correios deve conter 13 dígitos (Ex: AA123456789BR).")
+            return
+            
+        bot.send_message(message.chat.id, f"🔍 Buscando rastreamento do objeto *{codigo_objeto}* nos Correios...", parse_mode="Markdown")
+        
+        # Endpoint público estável do Linketrack com credenciais públicas de testes
+        url = f"https://api.linketrack.com/v1/track/json?user=teste&token=1fed60e6e761614742a7ea473070445d4c827c62b48e025810b42f21054bdf1d&codigo={codigo_objeto}"
+        res = requests.get(url, timeout=12)
+        
+        if res.status_code == 200:
+            dados = res.json()
+            eventos = dados.get('eventos', [])
+            
+            if not eventos:
+                bot.reply_to(message, f"📦 *{codigo_objeto}*\nObjeto ainda não postado ou código inexistente na base dos Correios.")
+                return
+                
+            # O primeiro item da lista 'eventos' é sempre a movimentação mais recente
+            ultimo_evento = eventos[0]
+            
+            txt = (
+                f"📦 *RASTREIO CORREIOS • {codigo_objeto}*\n"
+                "-----------------------------------------\n"
+                f"🚦 *Status atual:* {ultimo_evento.get('status')}\n"
+                f"📅 *Data:* {ultimo_evento.get('data')} às {ultimo_evento.get('hora')}\n"
+                f"📍 *Unidade/Local:* {ultimo_evento.get('local')}\n"
+            )
+            
+            # Adiciona detalhes extras se houver (ex: "encaminhado para Unidade de Tratamento...")
+            detalhes = ultimo_evento.get('subStatus', [])
+            if detalhes:
+                txt += f"➡️ _Detalhe: {detalhes[0]}_\n"
+                
+            txt += "-----------------------------------------\n"
+            txt += "💡 _Dica: Envie o comando novamente mais tarde para atualizar o status!_"
+            
+            bot.reply_to(message, txt, parse_mode="Markdown")
+        else:
+            bot.reply_to(message, f"⏳ Servidor de rastreio instável (Status: {res.status_code}). Tente novamente em alguns instantes.")
+            
+    except Exception as e:
+        bot.reply_to(message, f"❌ Erro operacional no motor de rastreamento: {e}")
 
 # Handler para Conversas Livres (Chatbot via Groq)
 @bot.message_handler(func=lambda m: True)
