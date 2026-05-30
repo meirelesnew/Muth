@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Versão 2026 - Conexão Web Real-Time Garantida
+# Versão 2026 - DuckDuckGo Search Oficial
 # ================================
 
 import os 
@@ -13,6 +13,7 @@ import telebot
 import numpy as np 
 from sklearn.neural_network import MLPClassifier 
 from sklearn.preprocessing import StandardScaler
+from duckduckgo_search import DDGS  # Importação da biblioteca oficial
 
 # ================================
 # CONFIG
@@ -52,37 +53,23 @@ def fibonacci(n):
     return result
 
 # ================================
-# MOTOR DE BUSCA EM TEMPO REAL (Livre de Bloqueios)
+# MOTOR DE BUSCA WEB OFICIAL
 # ================================
-def pesquisar_web_contingencia(termo):
-    """Busca dados reais na internet usando uma API aberta e estável"""
+def pesquisar_web(termo):
+    """Busca resultados reais usando a biblioteca oficial do DuckDuckGo"""
     try:
-        url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(termo)}"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        r = requests.get(url, headers=headers, timeout=8)
-        if r.status_code == 200 and "result__snippet" in r.text:
-            # Extrai os primeiros pedaços de texto que encontrar na página de busca
-            snippets = []
-            conteudo = r.text
-            for _ in range(3):
-                if "class=\"result__snippet\"" in conteudo:
-                    start = conteudo.find("class=\"result__snippet\"") + 24
-                    end = conteudo.find("</a>", start)
-                    snippet = conteudo[start:end].replace("<b>", "").replace("</b>", "").strip()
-                    if snippet and len(snippet) > 10:
-                        snippets.append(snippet)
-                    conteudo = conteudo[end:]
-            return "\n".join(snippets)
-    except:
-        pass
-    return ""
+        with DDGS() as ddgs:
+            resultados = [r['body'] for r in ddgs.text(termo, max_results=3)]
+            return "\n".join(resultados)
+    except Exception as e:
+        print(f"Erro na busca DuckDuckGo: {e}")
+        return ""
 
 # ================================
 # SISTEMA DE INTELIGÊNCIA INTEGRADA
 # ================================
 def perguntar_ia(prompt_sistema, pergunta_usuario):
     """Centraliza as chamadas utilizando OpenRouter (Qwen) com Fallback para Groq (Llama)"""
-    # Tenta primeiro via OpenRouter
     if OPENROUTER_API_KEY:
         try:
             url = "https://openrouter.ai/api/v1/chat/completions"
@@ -98,13 +85,13 @@ def perguntar_ia(prompt_sistema, pergunta_usuario):
                 ],
                 "temperature": 0.4
             }
-            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            r = requests.post(url, json=payload, headers=headers, timeout=12)
             if r.status_code == 200:
                 return r.json()['choices'][0]['message']['content']
         except:
             pass
 
-    # Se o OpenRouter falhar ou estiver sem chave, usa a Groq (Plano B ultrarápido)
+    # Fallback para Groq
     try:
         url = "https://api.groq.com/openai/v1/chat/completions" 
         headers = { 
@@ -148,29 +135,26 @@ def analisar_ml(ativo):
 def processar(msg): 
     t = msg.lower()
 
-    # Rota 1: Comando Matemático
     if "fibonacci" in t or "/fib" in t:
         return f"📊 Sequência Fibonacci:\n{fibonacci(10)}"
 
-    # Rota 2: Inteligência Artificial Local (Machine Learning)
     if any(x in t for x in ["petr4", "btc", "analise", "análise"]):
         preco, sinal = analisar_ml("PETR4")
         return f"🤖 MUTH ML ANALYSIS\nAtivo monitorado: PETR4\nPreço simulado: R$ {preco}\nSinal preditivo do modelo: {sinal}"
 
-    # Rota 3: Consultas de Tempo Real (Dólar, Clima, Notícias)
+    # Rota de Tempo Real (Dólar, Clima, Notícias)
     if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "euro", "hoje", "noticia", "notícia"]):
-        # Coleta dados brutos e frescos direto da internet
-        dados_da_internet = pesquisar_web_contingencia(msg)
+        dados_da_internet = pesquisar_web(msg)
         
         if dados_da_internet:
             sys_prompt = (
                 "Você é a Muth AI. Você recebeu dados extraídos em tempo real da internet para responder ao usuário. "
                 "Use as informações fornecidas para dar uma resposta exata, curta e atualizada. Responda em português."
             )
-            user_prompt = f"Pergunta do usuário: {msg}\n\nDados coletados na internet:\n{dados_da_internet}"
+            user_prompt = f"Pergunta do usuário: {msg}\n\nDados reais coletados na internet agora:\n{dados_da_internet}"
             return perguntar_ia(sys_prompt, user_prompt)
         
-    # Rota 4: Conversas comuns e suporte geral
+    # Conversas normais
     sys_prompt_geral = "Você é a Muth AI, um assistente inteligente e prestativo. Responda de forma direta em português."
     return perguntar_ia(sys_prompt_geral, msg)
 
@@ -212,4 +196,3 @@ if __name__ == '__main__':
     t.daemon = True 
     t.start()
     app.run(host='0.0.0.0', port=10000, debug=False)
-    
