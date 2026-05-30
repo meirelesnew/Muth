@@ -3,4 +3,5 @@ Flask
 requests
 numpy
 scikit-learn
-duckduckgo-search
+googlesearch-python
+
