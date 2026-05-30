@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Telegram + IA + ML + Fibonacci + APIs + Web Search
+# Telegram + IA + ML + Fibonacci + APIs + Google Search
 # ================================
 
 import os 
@@ -14,7 +14,7 @@ import telebot
 import numpy as np 
 from sklearn.neural_network import MLPClassifier 
 from sklearn.preprocessing import StandardScaler
-from duckduckgo_search import DDGS  # Nova biblioteca para buscar na internet
+from googlesearch import search  # Nova biblioteca de busca via Google
 
 # ================================
 # CONFIG
@@ -56,15 +56,18 @@ def fibonacci(n):
     return result
 
 # ================================
-# FERRAMENTA DE BUSCA WEB (GRATUITA)
+# FERRAMENTA DE BUSCA GOOGLE (ESTÁVEL NA NUVEM)
 # ================================
 def buscar_na_internet(termo):
     try:
-        with DDGS() as ddgs:
-            # Puxa os 3 resultados mais recentes sobre o assunto
-            resultados = [r["body"] for r in ddgs.text(termo, max_results=3)]
-            return "\n".join(resultados)
-    except Exception:
+        resultados = []
+        # Realiza a busca trazendo o título e o pequeno resumo (snippet) do Google
+        for r in search(termo, num_results=3, lang="pt", advanced=True):
+            resultados.append(f"Título: {r.title}\nResumo: {r.description}")
+        
+        return "\n\n".join(resultados)
+    except Exception as e:
+        print(f"Erro na busca do Google: {str(e)}")
         return ""
 
 # ================================
@@ -82,7 +85,7 @@ def chamar_groq(pergunta):
             "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": "Você é a Muth AI híbrida rápida."},
-                {"role": "user", "content": pergunta}
+                {"role": "user", "content": pregunta}
             ],
             "temperature": 0.7
         }
@@ -96,7 +99,7 @@ def chamar_groq(pergunta):
         return str(e)
 
 # ================================
-# IA OPENROUTER - QWEN (Para formatar buscas em tempo real)
+# IA OPENROUTER - QWEN (Para processar e resumir buscas)
 # ================================
 def chamar_openrouter(pergunta):
     try:
@@ -106,10 +109,10 @@ def chamar_openrouter(pergunta):
             "Content-Type": "application/json"
         }
         payload = {
-            # ID exato do Qwen3 Next Free do seu painel
+            # ID exato do Qwen3 Next Free configurado para o OpenRouter
             "model": "qwen/qwen3-next-80b-a3b-instruct:free", 
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI híbrida via Qwen. Responda de forma direta, clara e resumida em português para o Telegram."},
+                {"role": "system", "content": "Você é a Muth AI híbrida via Qwen. Responda de forma direta, clara e resumida em português para o Telegram usando as informações reais fornecidas."},
                 {"role": "user", "content": pergunta}
             ],
             "temperature": 0.6
@@ -156,11 +159,11 @@ def motor(texto):
     if "analise" in t:
         return "ML"
 
-    # Se o usuário pedir trânsito, clima, dólar ou dados de hoje, ativa a busca web
+    # Monitora gatilhos de tempo real
     if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "transito", "trânsito", "hoje", "noticia", "notícia"]):
         return "BUSCA_WEB"
 
-    # Conversas padrões vão para a Groq
+    # Conversas padrão caem na Groq
     return "GROQ"
 
 # ================================
@@ -181,20 +184,20 @@ def processar(msg):
         return f"🤖 ML ANALYSIS\nPreço: {preco}\nSinal: {sinal}"
 
     if tipo == "BUSCA_WEB":
-        # 1. Faz a raspagem rápida do Google/DuckDuckGo
+        # 1. Faz a busca usando a estrutura do Google
         contexto_internet = buscar_na_internet(msg)
         if contexto_internet:
-            # 2. Une a pergunta com os dados reais e manda pro Qwen formatar
+            # 2. Envia os dados encontrados na web para o Qwen Free formatar e responder
             prompt_turbinado = (
                 f"O usuário perguntou no Telegram: '{msg}'.\n"
-                f"Considere essas informações em tempo real encontradas na web para responder:\n\n"
+                f"Considere essas informações em tempo real encontradas no Google para formular sua resposta:\n\n"
                 f"{contexto_internet}"
             )
             return chamar_openrouter(prompt_turbinado)
         else:
-            return "Não consegui acessar os dados da internet agora. Tente novamente em instantes."
+            return "Não consegui encontrar dados recentes na internet para essa consulta. Tente reformular a pergunta."
 
-    # Resposta rápida da Groq para saudações e assuntos gerais
+    # Resposta via Groq
     return chamar_groq(msg)
 
 # ================================
@@ -222,7 +225,7 @@ def all_messages(m):
     bot.reply_to(m, str(r))
 
 # ================================
-# FLASK (Mantém o Render sabendo que o app está vivo)
+# FLASK (Keep Alive do Render)
 # ================================
 @app.route('/') 
 def home(): 
