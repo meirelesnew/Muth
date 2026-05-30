@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Versão Inteligente com Navegação Direta via IA
+# Versão 2026 - Conexão Web Real-Time Garantida
 # ================================
 
 import os 
@@ -52,10 +52,60 @@ def fibonacci(n):
     return result
 
 # ================================
-# IA GROQ (Rápida de Contingência)
+# MOTOR DE BUSCA EM TEMPO REAL (Livre de Bloqueios)
 # ================================
-def chamar_groq(pergunta): 
-    try: 
+def pesquisar_web_contingencia(termo):
+    """Busca dados reais na internet usando uma API aberta e estável"""
+    try:
+        url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(termo)}"
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        r = requests.get(url, headers=headers, timeout=8)
+        if r.status_code == 200 and "result__snippet" in r.text:
+            # Extrai os primeiros pedaços de texto que encontrar na página de busca
+            snippets = []
+            conteudo = r.text
+            for _ in range(3):
+                if "class=\"result__snippet\"" in conteudo:
+                    start = conteudo.find("class=\"result__snippet\"") + 24
+                    end = conteudo.find("</a>", start)
+                    snippet = conteudo[start:end].replace("<b>", "").replace("</b>", "").strip()
+                    if snippet and len(snippet) > 10:
+                        snippets.append(snippet)
+                    conteudo = conteudo[end:]
+            return "\n".join(snippets)
+    except:
+        pass
+    return ""
+
+# ================================
+# SISTEMA DE INTELIGÊNCIA INTEGRADA
+# ================================
+def perguntar_ia(prompt_sistema, pergunta_usuario):
+    """Centraliza as chamadas utilizando OpenRouter (Qwen) com Fallback para Groq (Llama)"""
+    # Tenta primeiro via OpenRouter
+    if OPENROUTER_API_KEY:
+        try:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "qwen/qwen3-next-80b-a3b-instruct:free", 
+                "messages": [
+                    {"role": "system", "content": prompt_sistema},
+                    {"role": "user", "content": pergunta_usuario}
+                ],
+                "temperature": 0.4
+            }
+            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            if r.status_code == 200:
+                return r.json()['choices'][0]['message']['content']
+        except:
+            pass
+
+    # Se o OpenRouter falhar ou estiver sem chave, usa a Groq (Plano B ultrarápido)
+    try:
         url = "https://api.groq.com/openai/v1/chat/completions" 
         headers = { 
             "Authorization": f"Bearer {GROQ_API_KEY}", 
@@ -64,56 +114,18 @@ def chamar_groq(pergunta):
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI. Responda em português de forma direta e inteligente."},
-                {"role": "user", "content": pergunta}
+                {"role": "system", "content": prompt_sistema},
+                {"role": "user", "content": pergunta_usuario}
             ],
-            "temperature": 0.5
+            "temperature": 0.4
         }
         r = requests.post(url, json=payload, headers=headers, timeout=10)
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
-        return "Estou enfrentando uma instabilidade temporária nas minhas conexões neurais."
     except:
-        return "Conexão interrompida. Por favor, tente novamente."
-
-# ================================
-# IA OPENROUTER - QWEN (Com comando de pesquisa ativado)
-# ================================
-def chamar_openrouter_com_web(pergunta):
-    if not OPENROUTER_API_KEY:
-        return chamar_groq(pergunta)
+        pass
         
-    try:
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        # O segredo está em instruir fortemente o modelo a usar sua capacidade de raciocínio atualizada
-        payload = {
-            "model": "qwen/qwen3-next-80b-a3b-instruct:free", 
-            "messages": [
-                {
-                    "role": "system", 
-                    "content": (
-                        "Você é a Muth AI, uma inteligência artificial conectada e avançada em 2026. "
-                        "Você DEVE fornecer dados precisos e atualizados sobre cotações, clima e eventos atuais. "
-                        "Seja direto, curto e responda em português amigável para o Telegram."
-                    )
-                },
-                {"role": "user", "content": pergunta}
-            ],
-            "temperature": 0.4
-        }
-        r = requests.post(url, json=payload, headers=headers, timeout=12)
-        
-        if r.status_code == 200:
-            return r.json()['choices'][0]['message']['content']
-            
-        return chamar_groq(pergunta)
-    except:
-        return chamar_groq(pergunta)
+    return "Desculpe, meus sistemas de resposta rápida estão sobrecarregados no momento."
 
 # ================================
 # MERCADO SIMULADO + ML
@@ -131,24 +143,36 @@ def analisar_ml(ativo):
     return preco, sinais[pred]
 
 # ================================
-# PROCESSADOR CENTRAL
+# PROCESSADOR CENTRAL DE DECISÃO
 # ================================
 def processar(msg): 
     t = msg.lower()
 
+    # Rota 1: Comando Matemático
     if "fibonacci" in t or "/fib" in t:
-        return f"📊 Fibonacci:\n{fibonacci(10)}"
+        return f"📊 Sequência Fibonacci:\n{fibonacci(10)}"
 
+    # Rota 2: Inteligência Artificial Local (Machine Learning)
     if any(x in t for x in ["petr4", "btc", "analise", "análise"]):
         preco, sinal = analisar_ml("PETR4")
-        return f"🤖 ML ANALYSIS (PETR4)\nPreço atual simulado: {preco}\nSinal gerado: {sinal}"
+        return f"🤖 MUTH ML ANALYSIS\nAtivo monitorado: PETR4\nPreço simulado: R$ {preco}\nSinal preditivo do modelo: {sinal}"
 
-    # Qualquer pergunta sobre clima, cotação, moedas ou atualidades vai para o motor do Qwen
-    if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "euro", "hoje", "noticia", "notícia", "quem é", "quem foi"]):
-        return chamar_openrouter_com_web(msg)
-
-    # Conversas gerais vão pela Groq que é instantânea
-    return chamar_groq(msg)
+    # Rota 3: Consultas de Tempo Real (Dólar, Clima, Notícias)
+    if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "euro", "hoje", "noticia", "notícia"]):
+        # Coleta dados brutos e frescos direto da internet
+        dados_da_internet = pesquisar_web_contingencia(msg)
+        
+        if dados_da_internet:
+            sys_prompt = (
+                "Você é a Muth AI. Você recebeu dados extraídos em tempo real da internet para responder ao usuário. "
+                "Use as informações fornecidas para dar uma resposta exata, curta e atualizada. Responda em português."
+            )
+            user_prompt = f"Pergunta do usuário: {msg}\n\nDados coletados na internet:\n{dados_da_internet}"
+            return perguntar_ia(sys_prompt, user_prompt)
+        
+    # Rota 4: Conversas comuns e suporte geral
+    sys_prompt_geral = "Você é a Muth AI, um assistente inteligente e prestativo. Responda de forma direta em português."
+    return perguntar_ia(sys_prompt_geral, msg)
 
 # ================================
 # TELEGRAM HANDLERS
