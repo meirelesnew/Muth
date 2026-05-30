@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Versão Estabilizada para Python 3.14
+# Versão Estabilizada e Homologada para Render
 # ================================
 
 import os 
@@ -13,7 +13,7 @@ import telebot
 import numpy as np 
 from sklearn.neural_network import MLPClassifier 
 from sklearn.preprocessing import StandardScaler
-from duckduckgo_search import DDGS  # Certificando importação correta
+from duckduckgo_search import DDGS
 
 # ================================
 # CONFIGURAÇÕES DE AMBIENTE
@@ -205,11 +205,14 @@ def home():
 # INICIALIZAÇÃO DA APLICAÇÃO
 # ================================
 if __name__ == '__main__': 
-    # Iniciando polling seguro
+    # 1. Inicia o Polling do Telegram em uma Thread separada e segura
     t = threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}) 
     t.daemon = True 
     t.start()
     
-    # Render escuta estritamente na porta 10000 de forma padrão
-    app.run(host='0.0.0.0', port=10000, debug=False)
+    # 2. Captura dinamicamente a porta que o Render disponibilizar, usando a 8080 como fallback local
+    port = int(os.environ.get("PORT", 8080))
     
+    # 3. Roda o Flask de forma limpa e compatível com o Render
+    app.run(host='0.0.0.0', port=port, debug=False)
+              
