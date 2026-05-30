@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Telegram + IA + ML + Fibonacci + APIs + Smart Search
+# Versão Anti-Bloqueio (Fallback Inteligente)
 # ================================
 
 import os 
@@ -60,15 +60,14 @@ def fibonacci(n):
 # ================================
 def obter_cotacao_dolar():
     try:
-        # API pública, gratuita e estável para moedas
         r = requests.get("https://economia.awesomeapi.com.br/last/USD-BRL", timeout=5)
         if r.status_code == 200:
             dados = r.json()
             bid = dados["USDBRL"]["bid"]
-            return f"Cotação do Dólar Comercial agora: R$ {float(bid):.2f}"
+            return f"💵 Cotação do Dólar Comercial agora: R$ {float(bid):.2f}"
     except:
         pass
-    return ""
+    return "Não consegui acessar a API de moedas agora."
 
 # ================================
 # FERRAMENTA DE BUSCA GOOGLE
@@ -95,7 +94,7 @@ def chamar_groq(pergunta):
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI híbrida rápida."},
+                {"role": "system", "content": "Você é a Muth AI híbrida rápida baseada no Llama. Responda em português de forma clara."},
                 {"role": "user", "content": pergunta}
             ],
             "temperature": 0.7
@@ -103,14 +102,14 @@ def chamar_groq(pergunta):
         r = requests.post(url, json=payload, headers=headers, timeout=12)
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
-        return "Erro IA Groq"
+        return "Erro temporário na comunicação com a IA primária."
     except Exception as e:
         return str(e)
 
 # ================================
-# IA OPENROUTER - QWEN
+# IA OPENROUTER - QWEN (Com Fallback automático para a Groq)
 # ================================
-def chamar_openrouter(pergunta, sistema="Você é a Muth AI híbrida via Qwen. Responda de forma direta, clara e resumida em português."):
+def chamar_openrouter(pergunta):
     try:
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
@@ -120,17 +119,24 @@ def chamar_openrouter(pergunta, sistema="Você é a Muth AI híbrida via Qwen. R
         payload = {
             "model": "qwen/qwen3-next-80b-a3b-instruct:free", 
             "messages": [
-                {"role": "system", "content": sistema},
+                {"role": "system", "content": "Você é a Muth AI híbrida via Qwen. Responda de forma direta e resumida em português."},
                 {"role": "user", "content": pergunta}
             ],
             "temperature": 0.6
         }
-        r = requests.post(url, json=payload, headers=headers, timeout=15)
+        r = requests.post(url, json=payload, headers=headers, timeout=12)
+        
+        # Se o OpenRouter aceitar e der sucesso (200), retorna a resposta dele
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
-        return f"Erro OpenRouter (Status {r.status_code})"
-    except Exception as e:
-        return str(e)
+            
+        # SE DER ERRO 429 (LIMITE) OU OUTRO: Aciona o plano B (Chama a Groq no lugar dele)
+        print(f"OpenRouter falhou com status {r.status_code}. Acionando motor de contingência Groq...")
+        return chamar_groq(pergunta)
+        
+    except Exception:
+        # Se a requisição cair por timeout, também vai para a Groq
+        return chamar_groq(pergunta)
 
 # ================================
 # MERCADO SIMULADO + ML
@@ -162,7 +168,10 @@ def motor(texto):
     if "analise" in t:
         return "ML"
 
-    if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "transito", "trânsito", "hoje", "noticia", "notícia"]):
+    if any(x in t for x in ["dolar", "dólar"]):
+        return "APIDOLAR"
+
+    if any(x in t for x in ["clima", "tempo", "transito", "trânsito", "hoje", "noticia", "notícia"]):
         return "BUSCA_WEB"
 
     return "GROQ"
@@ -180,18 +189,13 @@ def processar(msg):
         preco, sinal = analisar_ml("PETR4")
         return f"🤖 ML ANALYSIS\nPreço: {preco}\nSinal: {sinal}"
 
-    if tipo == "BUSCA_WEB":
-        # Atalho inteligente: Se for dólar, usa a API financeira direto sem passar pelo Google
-        if "dolar" in msg.lower() or "dólar" in msg.lower():
-            cotacao = obter_cotacao_dolar()
-            if cotacao:
-                return cotacao
+    if tipo == "APIDOLAR":
+        # Retorna direto a cotação limpa da API sem passar por nenhuma IA!
+        return obter_cotacao_dolar()
 
-        # Tenta buscar no Google
+    if tipo == "BUSCA_WEB":
         contexto_internet = buscar_na_internet(msg)
-        
         if contexto_internet:
-            # Se a busca trouxer resultados, o Qwen formata baseado neles
             prompt_turbinado = (
                 f"O usuário perguntou no Telegram: '{msg}'.\n"
                 f"Considere essas informações em tempo real encontradas na web para formular sua resposta:\n\n"
@@ -199,13 +203,8 @@ def processar(msg):
             )
             return chamar_openrouter(prompt_turbinado)
         else:
-            # SE O GOOGLE BLOQUEAR: O Qwen assume usando o vasto conhecimento interno atualizado dele
-            sistema_alternativo = (
-                "Você é a Muth AI. O sistema de busca web falhou temporariamente devido a bloqueios de IP, "
-                "então use sua base de dados atualizada e inteligência para responder à pergunta da melhor forma possível, "
-                "mencionando de forma sutil o que sabe sobre o assunto de forma direta."
-            )
-            return chamar_openrouter(msg, sistema_alternativo)
+            # Se a busca falhar, deixa a IA responder direto
+            return chamar_openrouter(msg)
 
     return chamar_groq(msg)
 
