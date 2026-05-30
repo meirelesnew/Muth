@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Versão Anti-Bloqueio (Fallback Inteligente)
+# Versão Resiliente e Tolerante a Falhas de Rede
 # ================================
 
 import os 
@@ -56,7 +56,7 @@ def fibonacci(n):
     return result
 
 # ================================
-# API DE ECONOMIA (Moedas Sem Bloqueio)
+# API DE ECONOMIA
 # ================================
 def obter_cotacao_dolar():
     try:
@@ -65,9 +65,9 @@ def obter_cotacao_dolar():
             dados = r.json()
             bid = dados["USDBRL"]["bid"]
             return f"💵 Cotação do Dólar Comercial agora: R$ {float(bid):.2f}"
-    except:
-        pass
-    return "Não consegui acessar a API de moedas agora."
+    except Exception as e:
+        print(f"Erro na API de Moedas: {e}")
+    return None
 
 # ================================
 # FERRAMENTA DE BUSCA GOOGLE
@@ -75,14 +75,14 @@ def obter_cotacao_dolar():
 def buscar_na_internet(termo):
     try:
         resultados = []
-        for r in search(termo, num_results=3, lang="pt", advanced=True):
+        for r in search(termo, num_results=2, lang="pt", advanced=True):
             resultados.append(f"Título: {r.title}\nResumo: {r.description}")
         return "\n\n".join(resultados)
     except:
         return ""
 
 # ================================
-# IA GROQ (Rápida para uso geral)
+# IA GROQ (Rápida para uso geral e contingência)
 # ================================
 def chamar_groq(pergunta): 
     try: 
@@ -94,22 +94,26 @@ def chamar_groq(pergunta):
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI híbrida rápida baseada no Llama. Responda em português de forma clara."},
+                {"role": "system", "content": "Você é a Muth AI. Responda em português de maneira direta e inteligente."},
                 {"role": "user", "content": pergunta}
             ],
             "temperature": 0.7
         }
-        r = requests.post(url, json=payload, headers=headers, timeout=12)
+        r = requests.post(url, json=payload, headers=headers, timeout=10)
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
-        return "Erro temporário na comunicação com a IA primária."
+        return f"Não consegui processar a resposta agora (Groq Status {r.status_code})."
     except Exception as e:
-        return str(e)
+        return f"Desculpe, encontrei um problema técnico de conexão. Tente novamente em instantes."
 
 # ================================
-# IA OPENROUTER - QWEN (Com Fallback automático para a Groq)
+# IA OPENROUTER - QWEN
 # ================================
 def chamar_openrouter(pergunta):
+    if not OPENROUTER_API_KEY:
+        print("Chave do OpenRouter ausente! Redirecionando direto para a Groq...")
+        return chamar_groq(pergunta)
+        
     try:
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
@@ -119,23 +123,20 @@ def chamar_openrouter(pergunta):
         payload = {
             "model": "qwen/qwen3-next-80b-a3b-instruct:free", 
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI híbrida via Qwen. Responda de forma direta e resumida em português."},
+                {"role": "system", "content": "Você é a Muth AI. Responda de forma direta e resumida em português."},
                 {"role": "user", "content": pergunta}
             ],
             "temperature": 0.6
         }
-        r = requests.post(url, json=payload, headers=headers, timeout=12)
+        r = requests.post(url, json=payload, headers=headers, timeout=10)
         
-        # Se o OpenRouter aceitar e der sucesso (200), retorna a resposta dele
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
             
-        # SE DER ERRO 429 (LIMITE) OU OUTRO: Aciona o plano B (Chama a Groq no lugar dele)
-        print(f"OpenRouter falhou com status {r.status_code}. Acionando motor de contingência Groq...")
+        print(f"OpenRouter retornou erro {r.status_code}. Acionando Groq...")
         return chamar_groq(pergunta)
         
     except Exception:
-        # Se a requisição cair por timeout, também vai para a Groq
         return chamar_groq(pergunta)
 
 # ================================
@@ -190,21 +191,23 @@ def processar(msg):
         return f"🤖 ML ANALYSIS\nPreço: {preco}\nSinal: {sinal}"
 
     if tipo == "APIDOLAR":
-        # Retorna direto a cotação limpa da API sem passar por nenhuma IA!
-        return obter_cotacao_dolar()
+        cotacao = obter_cotacao_dolar()
+        if cotacao:
+            return cotacao
+        # Fallback definitivo: Se a API de moedas falhar, a IA responde o valor estimado
+        return chamar_groq("Me dê uma estimativa do valor atual do dólar comercial em reais e explique que a API direta falhou.")
 
     if tipo == "BUSCA_WEB":
         contexto_internet = buscar_na_internet(msg)
         if contexto_internet:
             prompt_turbinado = (
-                f"O usuário perguntou no Telegram: '{msg}'.\n"
+                f"O usuário perguntou: '{msg}'.\n"
                 f"Considere essas informações em tempo real encontradas na web para formular sua resposta:\n\n"
                 f"{contexto_internet}"
             )
             return chamar_openrouter(prompt_turbinado)
         else:
-            # Se a busca falhar, deixa a IA responder direto
-            return chamar_openrouter(msg)
+            return chamar_groq(msg)
 
     return chamar_groq(msg)
 
