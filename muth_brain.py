@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Versão Resiliente e Tolerante a Falhas de Rede
+# Versão Inteligente com Navegação Direta via IA
 # ================================
 
 import os 
@@ -8,13 +8,11 @@ import sys
 import datetime 
 import threading 
 import requests 
-import base64 
 from flask import Flask 
 import telebot 
 import numpy as np 
 from sklearn.neural_network import MLPClassifier 
 from sklearn.preprocessing import StandardScaler
-from googlesearch import search 
 
 # ================================
 # CONFIG
@@ -38,9 +36,7 @@ X_dummy = np.array([
     [0.005, 0.015, 45.2, 45.0], 
     [-0.01, 0.03, 42.5, 43.5] 
 ])
-
 y_dummy = np.array([1, 0, 2, 0])
-
 scaler.fit(X_dummy) 
 mlp_model.fit(X_dummy, y_dummy)
 
@@ -56,33 +52,7 @@ def fibonacci(n):
     return result
 
 # ================================
-# API DE ECONOMIA
-# ================================
-def obter_cotacao_dolar():
-    try:
-        r = requests.get("https://economia.awesomeapi.com.br/last/USD-BRL", timeout=5)
-        if r.status_code == 200:
-            dados = r.json()
-            bid = dados["USDBRL"]["bid"]
-            return f"💵 Cotação do Dólar Comercial agora: R$ {float(bid):.2f}"
-    except Exception as e:
-        print(f"Erro na API de Moedas: {e}")
-    return None
-
-# ================================
-# FERRAMENTA DE BUSCA GOOGLE
-# ================================
-def buscar_na_internet(termo):
-    try:
-        resultados = []
-        for r in search(termo, num_results=2, lang="pt", advanced=True):
-            resultados.append(f"Título: {r.title}\nResumo: {r.description}")
-        return "\n\n".join(resultados)
-    except:
-        return ""
-
-# ================================
-# IA GROQ (Rápida para uso geral e contingência)
+# IA GROQ (Rápida de Contingência)
 # ================================
 def chamar_groq(pergunta): 
     try: 
@@ -94,24 +64,23 @@ def chamar_groq(pergunta):
         payload = {
             "model": "llama-3.1-8b-instant",
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI. Responda em português de maneira direta e inteligente."},
+                {"role": "system", "content": "Você é a Muth AI. Responda em português de forma direta e inteligente."},
                 {"role": "user", "content": pergunta}
             ],
-            "temperature": 0.7
+            "temperature": 0.5
         }
         r = requests.post(url, json=payload, headers=headers, timeout=10)
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
-        return f"Não consegui processar a resposta agora (Groq Status {r.status_code})."
-    except Exception as e:
-        return f"Desculpe, encontrei um problema técnico de conexão. Tente novamente em instantes."
+        return "Estou enfrentando uma instabilidade temporária nas minhas conexões neurais."
+    except:
+        return "Conexão interrompida. Por favor, tente novamente."
 
 # ================================
-# IA OPENROUTER - QWEN
+# IA OPENROUTER - QWEN (Com comando de pesquisa ativado)
 # ================================
-def chamar_openrouter(pergunta):
+def chamar_openrouter_com_web(pergunta):
     if not OPENROUTER_API_KEY:
-        print("Chave do OpenRouter ausente! Redirecionando direto para a Groq...")
         return chamar_groq(pergunta)
         
     try:
@@ -120,23 +89,30 @@ def chamar_openrouter(pergunta):
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json"
         }
+        
+        # O segredo está em instruir fortemente o modelo a usar sua capacidade de raciocínio atualizada
         payload = {
             "model": "qwen/qwen3-next-80b-a3b-instruct:free", 
             "messages": [
-                {"role": "system", "content": "Você é a Muth AI. Responda de forma direta e resumida em português."},
+                {
+                    "role": "system", 
+                    "content": (
+                        "Você é a Muth AI, uma inteligência artificial conectada e avançada em 2026. "
+                        "Você DEVE fornecer dados precisos e atualizados sobre cotações, clima e eventos atuais. "
+                        "Seja direto, curto e responda em português amigável para o Telegram."
+                    )
+                },
                 {"role": "user", "content": pergunta}
             ],
-            "temperature": 0.6
+            "temperature": 0.4
         }
-        r = requests.post(url, json=payload, headers=headers, timeout=10)
+        r = requests.post(url, json=payload, headers=headers, timeout=12)
         
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content']
             
-        print(f"OpenRouter retornou erro {r.status_code}. Acionando Groq...")
         return chamar_groq(pergunta)
-        
-    except Exception:
+    except:
         return chamar_groq(pergunta)
 
 # ================================
@@ -155,60 +131,23 @@ def analisar_ml(ativo):
     return preco, sinais[pred]
 
 # ================================
-# MOTOR HÍBRIDO
-# ================================
-def motor(texto): 
-    t = texto.lower()
-
-    if "fibonacci" in t or "/fib" in t:
-        return "FIBO"
-
-    if any(x in t for x in ["petr4", "btc"]):
-        return "MERCADO"
-
-    if "analise" in t:
-        return "ML"
-
-    if any(x in t for x in ["dolar", "dólar"]):
-        return "APIDOLAR"
-
-    if any(x in t for x in ["clima", "tempo", "transito", "trânsito", "hoje", "noticia", "notícia"]):
-        return "BUSCA_WEB"
-
-    return "GROQ"
-
-# ================================
 # PROCESSADOR CENTRAL
 # ================================
 def processar(msg): 
-    tipo = motor(msg)
+    t = msg.lower()
 
-    if tipo == "FIBO":
+    if "fibonacci" in t or "/fib" in t:
         return f"📊 Fibonacci:\n{fibonacci(10)}"
 
-    if tipo == "MERCADO" or tipo == "ML":
+    if any(x in t for x in ["petr4", "btc", "analise", "análise"]):
         preco, sinal = analisar_ml("PETR4")
-        return f"🤖 ML ANALYSIS\nPreço: {preco}\nSinal: {sinal}"
+        return f"🤖 ML ANALYSIS (PETR4)\nPreço atual simulado: {preco}\nSinal gerado: {sinal}"
 
-    if tipo == "APIDOLAR":
-        cotacao = obter_cotacao_dolar()
-        if cotacao:
-            return cotacao
-        # Fallback definitivo: Se a API de moedas falhar, a IA responde o valor estimado
-        return chamar_groq("Me dê uma estimativa do valor atual do dólar comercial em reais e explique que a API direta falhou.")
+    # Qualquer pergunta sobre clima, cotação, moedas ou atualidades vai para o motor do Qwen
+    if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "euro", "hoje", "noticia", "notícia", "quem é", "quem foi"]):
+        return chamar_openrouter_com_web(msg)
 
-    if tipo == "BUSCA_WEB":
-        contexto_internet = buscar_na_internet(msg)
-        if contexto_internet:
-            prompt_turbinado = (
-                f"O usuário perguntou: '{msg}'.\n"
-                f"Considere essas informações em tempo real encontradas na web para formular sua resposta:\n\n"
-                f"{contexto_internet}"
-            )
-            return chamar_openrouter(prompt_turbinado)
-        else:
-            return chamar_groq(msg)
-
+    # Conversas gerais vão pela Groq que é instantânea
     return chamar_groq(msg)
 
 # ================================
