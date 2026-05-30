@@ -1,6 +1,6 @@
 # ================================
 # MUTH AI - BOT HÍBRIDO COMPLETO
-# Versão 2026 - DuckDuckGo Search Oficial
+# Versão 2026 - Livre de Erros de Build (Pure Python)
 # ================================
 
 import os 
@@ -13,10 +13,10 @@ import telebot
 import numpy as np 
 from sklearn.neural_network import MLPClassifier 
 from sklearn.preprocessing import StandardScaler
-from duckduckgo_search import DDGS  # Importação da biblioteca oficial
+from duckduckgo_search import DDGS  # Biblioteca oficial ajustada para versão leve
 
 # ================================
-# CONFIG
+# CONFIGURAÇÕES DE AMBIENTE
 # ================================
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN") 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -26,11 +26,12 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 app = Flask(__name__)
 
 # ================================
-# IA LOCAL (ML)
+# IA LOCAL (MACHINE LEARNING)
 # ================================
 scaler = StandardScaler() 
 mlp_model = MLPClassifier(hidden_layer_sizes=(10, 5), max_iter=500, random_state=42)
 
+# Dados simulados para o modelo não iniciar vazio
 X_dummy = np.array([ 
     [0.01, 0.02, 45.0, 44.5], 
     [-0.02, 0.04, 43.0, 44.0], 
@@ -42,7 +43,7 @@ scaler.fit(X_dummy)
 mlp_model.fit(X_dummy, y_dummy)
 
 # ================================
-# FIBONACCI ENGINE
+# MOTOR MATEMÁTICO (FIBONACCI)
 # ================================
 def fibonacci(n): 
     a, b = 0, 1 
@@ -53,23 +54,25 @@ def fibonacci(n):
     return result
 
 # ================================
-# MOTOR DE BUSCA WEB OFICIAL
+# MOTOR DE BUSCA WEB (RESOLVE DADOS EM TEMPO REAL)
 # ================================
 def pesquisar_web(termo):
-    """Busca resultados reais usando a biblioteca oficial do DuckDuckGo"""
+    """Busca resultados reais na internet sem depender de pacotes Rust"""
     try:
         with DDGS() as ddgs:
-            resultados = [r['body'] for r in ddgs.text(termo, max_results=3)]
+            # Padrão compatível com a versão puramente Python (5.x)
+            resultados = [r['body'] for r in list(ddgs.text(termo, max_results=3))]
             return "\n".join(resultados)
     except Exception as e:
         print(f"Erro na busca DuckDuckGo: {e}")
         return ""
 
 # ================================
-# SISTEMA DE INTELIGÊNCIA INTEGRADA
+# MOTOR DE INTELIGÊNCIA ARTIFICIAL (LLM)
 # ================================
 def perguntar_ia(prompt_sistema, pergunta_usuario):
-    """Centraliza as chamadas utilizando OpenRouter (Qwen) com Fallback para Groq (Llama)"""
+    """Chama a API do OpenRouter (Qwen) com fallback automático para Groq (Llama)"""
+    # 1. Tentativa Principal: OpenRouter (Qwen)
     if OPENROUTER_API_KEY:
         try:
             url = "https://openrouter.ai/api/v1/chat/completions"
@@ -91,31 +94,32 @@ def perguntar_ia(prompt_sistema, pergunta_usuario):
         except:
             pass
 
-    # Fallback para Groq
-    try:
-        url = "https://api.groq.com/openai/v1/chat/completions" 
-        headers = { 
-            "Authorization": f"Bearer {GROQ_API_KEY}", 
-            "Content-Type": "application/json" 
-        }
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": prompt_sistema},
-                {"role": "user", "content": pergunta_usuario}
-            ],
-            "temperature": 0.4
-        }
-        r = requests.post(url, json=payload, headers=headers, timeout=10)
-        if r.status_code == 200:
-            return r.json()['choices'][0]['message']['content']
-    except:
-        pass
+    # 2. Segunda Alternativa (Plano B): Groq (Llama 3.1)
+    if GROQ_API_KEY:
+        try:
+            url = "https://api.groq.com/openai/v1/chat/completions" 
+            headers = { 
+                "Authorization": f"Bearer {GROQ_API_KEY}", 
+                "Content-Type": "application/json" 
+            }
+            payload = {
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": prompt_sistema},
+                    {"role": "user", "content": pergunta_usuario}
+                ],
+                "temperature": 0.4
+            }
+            r = requests.post(url, json=payload, headers=headers, timeout=10)
+            if r.status_code == 200:
+                return r.json()['choices'][0]['message']['content']
+        except:
+            pass
         
-    return "Desculpe, meus sistemas de resposta rápida estão sobrecarregados no momento."
+    return "Desculpe, meus sistemas de resposta rápida estão temporariamente instáveis."
 
 # ================================
-# MERCADO SIMULADO + ML
+# PROCESSAMENTO DE MERCADO SIMULADO
 # ================================
 def obter_mercado(ativo): 
     if "PETR4" in ativo: 
@@ -130,32 +134,35 @@ def analisar_ml(ativo):
     return preco, sinais[pred]
 
 # ================================
-# PROCESSADOR CENTRAL DE DECISÃO
+# PROCESSADOR CENTRAL DE DECISÃO (ROTEADOR)
 # ================================
 def processar(msg): 
     t = msg.lower()
 
+    # Rota 1: Comando Matemático Direto
     if "fibonacci" in t or "/fib" in t:
         return f"📊 Sequência Fibonacci:\n{fibonacci(10)}"
 
+    # Rota 2: Machine Learning Local
     if any(x in t for x in ["petr4", "btc", "analise", "análise"]):
         preco, sinal = analisar_ml("PETR4")
         return f"🤖 MUTH ML ANALYSIS\nAtivo monitorado: PETR4\nPreço simulado: R$ {preco}\nSinal preditivo do modelo: {sinal}"
 
-    # Rota de Tempo Real (Dólar, Clima, Notícias)
+    # Rota 3: Consultas de Tempo Real (Dólar, Clima, Tempo, Notícias)
     if any(x in t for x in ["clima", "tempo", "dolar", "dólar", "euro", "hoje", "noticia", "notícia"]):
         dados_da_internet = pesquisar_web(msg)
         
         if dados_da_internet:
             sys_prompt = (
-                "Você é a Muth AI. Você recebeu dados extraídos em tempo real da internet para responder ao usuário. "
-                "Use as informações fornecidas para dar uma resposta exata, curta e atualizada. Responda em português."
+                "Você é a Muth AI. Você recebeu dados reais extraídos em tempo real da internet para responder ao usuário. "
+                "Use as informações fornecidas para formular uma resposta exata, curta, direta e atualizada. "
+                "Nunca diga que não tem acesso à internet, pois os dados te foram fornecidos abaixo. Responda em português."
             )
             user_prompt = f"Pergunta do usuário: {msg}\n\nDados reais coletados na internet agora:\n{dados_da_internet}"
             return perguntar_ia(sys_prompt, user_prompt)
         
-    # Conversas normais
-    sys_prompt_geral = "Você é a Muth AI, um assistente inteligente e prestativo. Responda de forma direta em português."
+    # Rota 4: Conversas Gerais / Suporte Comum
+    sys_prompt_geral = "Você é a Muth AI, um assistente inteligente, direto e muito prestativo. Responda de forma objetiva em português."
     return perguntar_ia(sys_prompt_geral, msg)
 
 # ================================
@@ -182,17 +189,20 @@ def all_messages(m):
     bot.reply_to(m, str(r))
 
 # ================================
-# FLASK (Keep Alive)
+# FLASK INTERFACE (KEEP-ALIVE NO RENDER)
 # ================================
 @app.route('/') 
 def home(): 
     return f"MUTH AI HYBRID ONLINE - {datetime.datetime.now()}"
 
 # ================================
-# RUN
+# INICIALIZAÇÃO DA APLICAÇÃO
 # ================================
 if __name__ == '__main__': 
+    # Thread separada para o Polling do Telegram não travar o Flask
     t = threading.Thread(target=bot.infinity_polling) 
     t.daemon = True 
     t.start()
+    
+    # Inicia o servidor Web na porta padrão exigida pelo Render
     app.run(host='0.0.0.0', port=10000, debug=False)
